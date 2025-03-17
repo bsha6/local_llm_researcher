@@ -62,7 +62,6 @@ class DatabaseManager:
                 chunk_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 paper_id TEXT NOT NULL,
                 chunk_text TEXT NOT NULL,
-                embedding_index INTEGER NOT NULL,
                 faiss_idx INTEGER NOT NULL,
                 FOREIGN KEY (paper_id) REFERENCES arxiv_papers(paper_id)
             );

@@ -233,8 +233,8 @@ class FaissIndex:
             for chunk in chunks:
                 # Insert chunk into SQLite
                 cursor.execute(
-                    "INSERT INTO paper_chunks (paper_id, chunk_text, embedding_index) VALUES (?, ?, ?)",
-                    (paper_id, chunk, -1)  # Placeholder for embedding_index
+                    "INSERT INTO paper_chunks (paper_id, chunk_text) VALUES (?, ?)",
+                    (paper_id, chunk)
                 )
                 chunk_id = cursor.lastrowid
                 chunk_ids.append(chunk_id)

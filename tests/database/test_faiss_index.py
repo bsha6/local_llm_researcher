@@ -107,12 +107,12 @@ def test_insert_chunks_into_db(faiss_index, mocker):
     # Verify the SQL query and parameters
     expected_calls = [
         mocker.call(
-            "INSERT INTO paper_chunks (paper_id, chunk_text, embedding_index) VALUES (?, ?, ?)",
-            (paper_id, "This is chunk 1", -1)
+            "INSERT INTO paper_chunks (paper_id, chunk_text) VALUES (?, ?)",
+            (paper_id, "This is chunk 1")
         ),
         mocker.call(
-            "INSERT INTO paper_chunks (paper_id, chunk_text, embedding_index) VALUES (?, ?, ?)",
-            (paper_id, "This is chunk 2", -1)
+            "INSERT INTO paper_chunks (paper_id, chunk_text) VALUES (?, ?)",
+            (paper_id, "This is chunk 2")
         )
     ]
     mock_cursor.execute.assert_has_calls(expected_calls, any_order=False)
