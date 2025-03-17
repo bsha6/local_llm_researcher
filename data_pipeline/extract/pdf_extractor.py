@@ -55,9 +55,9 @@ class PDFExtractor:
         }
 
         # IF this process becomes blocking/slow: Save extracted data to sqlite db?
-        json_path = os.path.join(self.output_folder, "extracted_data.json")
-        with open(json_path, "w") as f:
-            json.dump(extracted_data, f, indent=4)
+        # json_path = os.path.join(self.output_folder, "extracted_data.json")
+        # with open(json_path, "w") as f:
+        #     json.dump(extracted_data, f, indent=4)
         
         return extracted_data
 
