@@ -45,6 +45,7 @@ class PDFExtractor:
 
     def process_pdf(self):
         """Runs both text and image extraction, returns structured metadata."""
+        # TODO: implement multi-threading (use 6/8 CPU cores)
         text_data = self.extract_text()
         image_data = self.extract_images()
 
