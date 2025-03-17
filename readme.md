@@ -16,6 +16,9 @@ generate_image_embeddings()
 -conda env list -> env.yaml
 -set up git repo
 
+-Use "src" folder for source code
+-Rename root folder to "local_llm_researcher"
+
 #### TESTS:
 -integration testing (everything works together)
 
