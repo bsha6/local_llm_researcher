@@ -35,4 +35,5 @@ generate_image_embeddings()
 
 ### Dependencies
 -installed ghostscript view homebrew
+-Using LLMs via Ollama
 
