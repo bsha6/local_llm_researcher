@@ -4,7 +4,7 @@ import pytest
 from datetime import datetime
 from tenacity import RetryError
 
-from data_pipeline.arxiv_api import fetch_arxiv_paper_data
+from data_pipeline.arxiv_api import ArxivPaperFetcher
 
 class TestArxivAPI(unittest.TestCase):
     
@@ -37,8 +37,9 @@ class TestArxivAPI(unittest.TestCase):
         mock_client_instance = mock_client.return_value
         mock_client_instance.results.return_value = mock_results
         
-        # Call the function
-        papers = fetch_arxiv_paper_data(max_results=2)
+        # Call the function through the class
+        fetcher = ArxivPaperFetcher()
+        papers = fetcher.fetch_arxiv_paper_data(max_results=2)
         
         # Assertions
         assert len(papers) == 2
@@ -66,26 +67,31 @@ class TestArxivAPI(unittest.TestCase):
         mock_client_instance = mock_client.return_value
         mock_client_instance.results.return_value = []
         
-        # Call the function
-        papers = fetch_arxiv_paper_data(max_results=5)
+        # Call the function through the class
+        fetcher = ArxivPaperFetcher()
+        papers = fetcher.fetch_arxiv_paper_data(max_results=5)
         
         # Assertions
         assert papers == []
     
 
-@patch('data_pipeline.arxiv_api.arxiv.Client.results', side_effect=Exception("Mocked error"))
-def test_retry_mechanism(mock_results):
+@patch('data_pipeline.arxiv_api.arxiv.Client')
+def test_retry_mechanism(mock_client):
     """Test that fetch_arxiv_paper_data retries on failure."""
+    # Configure the mock client to raise an exception
+    mock_client_instance = mock_client.return_value
+    mock_client_instance.results.side_effect = Exception("Mocked error")
     
     with pytest.raises(RetryError) as exc_info:
-        fetch_arxiv_paper_data()
+        fetcher = ArxivPaperFetcher()
+        fetcher.fetch_arxiv_paper_data()
 
     # Extract the actual exception inside RetryError
     assert isinstance(exc_info.value.__cause__, Exception), "RetryError did not wrap an exception"
     assert "Mocked error" in str(exc_info.value.__cause__), f"Expected 'Mocked error' but got {exc_info.value.__cause__}"
 
     # Ensure the function was retried 3 times
-    assert mock_results.call_count == 3, f"Expected 3 retries, but got {mock_results.call_count}"
+    assert mock_client_instance.results.call_count == 3, f"Expected 3 retries, but got {mock_client_instance.results.call_count}"
     
 
     # TODO: Add test for PDF download functionality once it's properly implemented
