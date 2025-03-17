@@ -32,7 +32,7 @@ class FaissSearcher:
 
     def _fetch_metadata(self, indices):
         """
-        Retrieve metadata (text chunks) from SQLite.
+        Retrieve text chunks from SQLite.
 
         :param indices: List of FAISS indices.
         :return: List of text chunks.
@@ -42,7 +42,7 @@ class FaissSearcher:
         retrieved_chunks = []
 
         for idx in indices:
-            cursor.execute("SELECT chunk FROM metadata WHERE id=?", (idx+1,))
+            cursor.execute("SELECT chunk_text FROM paper_chunks WHERE faiss_idx=?", (idx+1,))
             result = cursor.fetchone()
             if result:
                 retrieved_chunks.append(result[0])
