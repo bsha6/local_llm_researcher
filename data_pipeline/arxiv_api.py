@@ -136,7 +136,7 @@ class ArxivPaperFetcher:
 if __name__ == "__main__":
     try:
         fetcher = ArxivPaperFetcher()
-        papers = fetcher.fetch_arxiv_paper_data(sort_by="DATe")
+        papers = fetcher.fetch_arxiv_paper_data(sort_by="date")
         fetcher.display_papers(papers)
         # fetcher.store_papers_in_db(papers)
         # logging.info(f"✅ Successfully stored {len(papers)} papers in the database!")
