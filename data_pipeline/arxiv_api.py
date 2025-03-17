@@ -9,14 +9,17 @@ from database.sqlite_db import DatabaseManager
 from utils.file_operations import load_config
 from utils.pdf_operations import compress_pdf
 
+config = load_config()
+QUERY = config["arxiv"]["query"]
+
 
 class ArxivPaperFetcher:
     """Class for fetching, displaying, and storing ArXiv papers."""
 
-    def __init__(self):
+    def __init__(self, query=QUERY):
         """Initialize with configuration."""
+        self.query = query
         self.config = load_config()
-        self.query = "Chain-of-Thought (CoT)"  # Default query
         self.save_path = self.config["storage"]["save_path"]
         self.db_path = self.config["database"]["arxiv_db_path"]
         
