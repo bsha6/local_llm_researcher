@@ -33,14 +33,18 @@ class ArxivPaperFetcher:
         return self
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=2))
-    def fetch_arxiv_paper_data(self, max_results: int = 5):
+    def fetch_arxiv_paper_data(self, max_results: int = 5, sort_by: str = "relevance"):
         """Fetches papers from ArXiv."""
+        if sort_by.lower() == "date":
+            sort_criterion = arxiv.SortCriterion.SubmittedDate
+        else:
+            sort_criterion = arxiv.SortCriterion.Relevance
+
         client = arxiv.Client()
         search = arxiv.Search(
             query=self.query,
             max_results=max_results,
-            # sort_by=arxiv.SortCriterion.SubmittedDate
-            sort_by=arxiv.SortCriterion.Relevance
+            sort_by=sort_criterion
         )
 
         papers = []
@@ -132,7 +136,7 @@ class ArxivPaperFetcher:
 if __name__ == "__main__":
     try:
         fetcher = ArxivPaperFetcher()
-        papers = fetcher.fetch_arxiv_paper_data()
+        papers = fetcher.fetch_arxiv_paper_data(sort_by="DATe")
         fetcher.display_papers(papers)
         # fetcher.store_papers_in_db(papers)
         # logging.info(f"✅ Successfully stored {len(papers)} papers in the database!")
