@@ -7,15 +7,15 @@ config = load_config()
 DB_NAME = config["database"]["arxiv_db_path"]
 
 class FaissSearcher:
-    def __init__(self, faiss_index: FaissIndex, metadata_db=DB_NAME):
+    def __init__(self, faiss_index: FaissIndex, db=DB_NAME):
         """
         Initialize the FAISS searcher.
 
         :param faiss_index: An instance of the FaissIndex class.
-        :param metadata_db: Path to SQLite database storing metadata.
+        :param db: Path to SQLite database storing metadata.
         """
         self.faiss_index = faiss_index
-        self.metadata_db = metadata_db
+        self.db = db
 
     def search(self, query_embedding: np.ndarray, top_k=5):
         """
@@ -37,7 +37,7 @@ class FaissSearcher:
         :param indices: List of FAISS indices.
         :return: List of text chunks.
         """
-        conn = sqlite3.connect(self.metadata_db)
+        conn = sqlite3.connect(self.db)
         cursor = conn.cursor()
         retrieved_chunks = []
 

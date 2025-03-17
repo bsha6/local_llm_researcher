@@ -30,14 +30,14 @@ class TestFaissSearcher:
     
     def test_init(self, faiss_index):
         """Test initialization of FaissSearcher."""
-        searcher = FaissSearcher(faiss_index, metadata_db=":memory:")
+        searcher = FaissSearcher(faiss_index, db=":memory:")
         
         assert searcher.faiss_index == faiss_index
-        assert searcher.metadata_db == ":memory:"
+        assert searcher.db == ":memory:"
     
     def test_search(self, faiss_index, mock_sqlite_connection):
         """Test the search method."""
-        searcher = FaissSearcher(faiss_index, metadata_db=":memory:")
+        searcher = FaissSearcher(faiss_index, db=":memory:")
         
         # Create a mock query embedding
         query_embedding = np.random.rand(1, 384).astype(np.float32)
@@ -61,7 +61,7 @@ class TestFaissSearcher:
         """Test the _fetch_metadata method."""
         mock_conn, mock_cursor = mock_sqlite_connection
         
-        searcher = FaissSearcher(faiss_index, metadata_db=":memory:")
+        searcher = FaissSearcher(faiss_index, db=":memory:")
         
         # Call the _fetch_metadata method with some indices
         results = searcher._fetch_metadata([0, 1, 2, 3])
@@ -72,7 +72,7 @@ class TestFaissSearcher:
         # Check the SQL queries
         for i in range(4):
             args, kwargs = mock_cursor.execute.call_args_list[i]
-            assert args[0] == "SELECT chunk FROM metadata WHERE id=?"
+            assert args[0] == "SELECT chunk_text FROM paper_chunks WHERE faiss_idx=?"
             assert args[1] == (i+1,)
         
         # Verify the results
@@ -83,7 +83,7 @@ class TestFaissSearcher:
     
     def test_search_dimension_mismatch(self, faiss_index):
         """Test that search raises an assertion error when dimensions don't match."""
-        searcher = FaissSearcher(faiss_index, metadata_db=":memory:")
+        searcher = FaissSearcher(faiss_index, db=":memory:")
         
         # Create a query embedding with wrong dimensions
         query_embedding = np.random.rand(1, 128).astype(np.float32)  # Wrong dimension (should be 384)
@@ -97,7 +97,7 @@ class TestFaissSearcher:
         # Mock the search method to return empty results
         faiss_index.index.search.return_value = (np.array([[]]), np.array([[]]))
         
-        searcher = FaissSearcher(faiss_index, metadata_db=":memory:")
+        searcher = FaissSearcher(faiss_index, db=":memory:")
         
         # Create a mock query embedding
         query_embedding = np.random.rand(1, 384).astype(np.float32)
