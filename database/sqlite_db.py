@@ -31,6 +31,7 @@ def init_db():
         journal_ref TEXT,  -- Journal reference (if published)
         source TEXT,
         downloaded INTEGER DEFAULT 0 -- 0 means FALSE
+        text_extracted INTEGER DEFAULT 0 -- 0 means FALSE
     )
 """)
     conn.commit()
