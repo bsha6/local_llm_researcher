@@ -33,9 +33,16 @@ def temp_config_file(tmp_path):
     """Fixture to create a temporary config file."""
     temp_file = tmp_path / "test_config.yaml"  # Ensure this is a Path object
     config_data = {
-        "arxiv": {"query": "test query"},
-        "database": {"arxiv_db_path": ":memory:"},
-        "storage": {"save_path": "test_papers/"}
+        "database": {
+            "arxiv_db_path": ":memory:"
+        },
+        "arxiv": {
+            "query": "test query"
+        },
+        "storage": {
+            "root_path": "/test/root",
+            "save_path": "test_papers/",
+        }
     }
     
     with open(temp_file, "w") as f:
