@@ -227,11 +227,10 @@ class FaissIndex:
             return
 
         chunk_ids = []
-        embeddings = []
 
         with DatabaseManager(self.db_path) as cursor:
+            # First insert all chunks into SQLite
             for chunk in chunks:
-                # Insert chunk into SQLite
                 cursor.execute(
                     "INSERT INTO paper_chunks (paper_id, chunk_text) VALUES (?, ?)",
                     (paper_id, chunk)
@@ -239,14 +238,23 @@ class FaissIndex:
                 chunk_id = cursor.lastrowid
                 chunk_ids.append(chunk_id)
 
-                # Generate embedding
-                embedding = embedding_model(chunk)  # Assume this returns a 1D NumPy array
-                embeddings.append(embedding)
-
-        if embeddings:
-            # Convert embeddings to NumPy array
-            embeddings = np.array(embeddings).astype("float32")
-
+        if chunk_ids:
+            # Generate embeddings for all chunks at once to ensure consistent shapes
+            embeddings = embedding_model(chunks)
+            
+            # Ensure embeddings are in the correct shape
+            if isinstance(embeddings, list):
+                embeddings = np.array(embeddings)
+            if embeddings.ndim == 1:
+                embeddings = embeddings.reshape(1, -1)
+            
+            # Convert to float32 for FAISS
+            embeddings = embeddings.astype("float32")
+            
+            # Verify dimensions
+            if embeddings.shape[1] != self.dim:
+                raise ValueError(f"Embedding dimension mismatch. Expected {self.dim}, got {embeddings.shape[1]}")
+            
             # Insert embeddings into FAISS
             self.add_embeddings(embeddings, chunk_ids)
 
