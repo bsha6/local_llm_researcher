@@ -10,34 +10,46 @@ ARXIV_DB_PATH = config["database"]["arxiv_db_path"]
 DIM = config["models"]["e5_small"]["dimensions"]
 
 class FaissIndex:
-    def __init__(self, index_path="faiss_index.idx", db_path=ARXIV_DB_PATH, dim=DIM, use_hnsw=True, batch_size=1000):
+    def __init__(self, index_path="faiss_index.idx", db_path=ARXIV_DB_PATH, dim=DIM, 
+                 use_hnsw=True, M=32, efConstruction=100, efSearch=40, batch_size=1000):
         """
-        Initialize FAISS index with HNSW for fast approximate nearest neighbor search.
+        Initialize FAISS index with optimized HNSW for fast approximate nearest neighbor search.
         
         :param index_path: Path to store FAISS index.
         :param db_path: Path to SQLite database.
         :param dim: Embedding dimension (E5-small outputs 384D).
         :param use_hnsw: Whether to use HNSW (recommended for local + fast queries).
+        :param M: Number of connections per layer in HNSW graph (higher = better recall but more memory).
+        :param efConstruction: Size of the dynamic candidate list for construction (higher = better quality but slower build).
+        :param efSearch: Size of the dynamic candidate list for search (higher = better recall but slower search).
         :param batch_size: Number of records to write in a single batch.
         """
         self.index_path = index_path
         self.db_path = db_path
         self.dim = dim
         self.use_hnsw = use_hnsw
+        self.M = M
+        self.efConstruction = efConstruction
+        self.efSearch = efSearch
         self.batch_size = batch_size
         self.index = self._initialize_index()
 
     def _initialize_index(self):
-        """Creates or loads a FAISS index."""
+        """Creates or loads a FAISS index with optimized HNSW parameters."""
         try:
             index = faiss.read_index(self.index_path)
+            if isinstance(index, faiss.IndexHNSWFlat):
+                index.hnsw.efSearch = self.efSearch
             print(f"Loaded existing FAISS index with {index.ntotal} vectors.")
             return index
         except Exception as e:
             print(f"Could not load index: {e}")
             print("Creating a new FAISS index...")
             if self.use_hnsw:
-                index = faiss.IndexHNSWFlat(self.dim, 32)  # HNSW with 32 neighbors in graph
+                # Initialize HNSW index with optimized parameters
+                index = faiss.IndexHNSWFlat(self.dim, self.M)
+                index.hnsw.efConstruction = self.efConstruction
+                index.hnsw.efSearch = self.efSearch
             else:
                 index = faiss.IndexFlatL2(self.dim)  # Brute-force search
 
