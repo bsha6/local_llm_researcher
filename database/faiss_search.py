@@ -80,5 +80,5 @@ if __name__ == "__main__":
         print(f"\nResult {i+1} (Distance: {distances[i]:.4f})")
         print(f"Paper ID: {paper_id}")
         print(f"Chunk ID: {chunk_id}")
-        print(f"Text: {chunk_text[:500]}...")  # Show first 200 chars
+        print(f"Text: {chunk_text[:300]}...")
         print("-" * 80)
