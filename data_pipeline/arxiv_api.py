@@ -32,8 +32,24 @@ class ArxivPaperFetcher:
         self.query = query
         return self
 
+    def _store_query_history(self, max_results: int, results_returned: int, category: str = None) -> int:
+        """
+        Store query execution history in the database.
+        
+        :param max_results: Maximum number of results requested
+        :param results_returned: Actual number of results returned
+        :param category: Optional category/topic of the search
+        :return: The query_id of the stored record
+        """
+        with DatabaseManager(self.db_path) as cursor:
+            cursor.execute("""
+                INSERT INTO query_history (query_text, max_results, results_returned, category)
+                VALUES (?, ?, ?, ?)
+            """, (self.query, max_results, results_returned, category))
+            return cursor.lastrowid
+
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=2))
-    def fetch_arxiv_paper_data(self, max_results: int = 5, sort_by: str = "relevance"):
+    def fetch_arxiv_paper_data(self, max_results: int = 5, sort_by: str = "relevance", category: str = None):
         """Fetches papers from ArXiv."""
         if sort_by.lower() == "date":
             sort_criterion = arxiv.SortCriterion.SubmittedDate
@@ -64,6 +80,10 @@ class ArxivPaperFetcher:
                 "source": "arxiv",
             }
             papers.append(paper_data)
+        
+        # Store query history after successful fetch
+        self._store_query_history(max_results, len(papers), category)
+        
         return papers
 
     def display_papers(self, papers):
@@ -128,6 +148,66 @@ class ArxivPaperFetcher:
                 ))
 
                 self.download_arxiv_pdf(paper["id"], paper["pdf_url"], cursor)
+
+    def get_query_history(self, limit: int = None, category: str = None):
+        """
+        Retrieve query history from the database.
+        
+        :param limit: Optional limit on number of records to return
+        :param category: Optional category to filter by
+        :return: List of query history records
+        """
+        with DatabaseManager(self.db_path) as cursor:
+            query = """
+                SELECT query_id, query_text, timestamp, max_results, results_returned, category, status
+                FROM query_history
+                WHERE 1=1
+            """
+            params = []
+            
+            if category:
+                query += " AND category = ?"
+                params.append(category)
+            
+            query += " ORDER BY timestamp DESC"
+            
+            if limit:
+                query += " LIMIT ?"
+                params.append(limit)
+            
+            cursor.execute(query, params)
+            
+            # Get column names from cursor description
+            columns = [description[0] for description in cursor.description]
+            
+            # Convert results to list of dictionaries
+            results = cursor.fetchall()
+            return [dict(zip(columns, row)) for row in results]
+
+    def get_query_stats(self):
+        """
+        Get statistics about queries executed.
+        
+        :return: Dictionary containing query statistics
+        """
+        with DatabaseManager(self.db_path) as cursor:
+            cursor.execute("""
+                SELECT 
+                    COUNT(*) as total_queries,
+                    AVG(results_returned) as avg_results,
+                    SUM(results_returned) as total_results,
+                    MIN(timestamp) as first_query,
+                    MAX(timestamp) as last_query,
+                    COUNT(DISTINCT category) as unique_categories
+                FROM query_history
+            """)
+            
+            # Get column names from cursor description
+            columns = [description[0] for description in cursor.description]
+            
+            # Convert result to dictionary
+            result = cursor.fetchone()
+            return dict(zip(columns, result))
 
 
 # -----------------------------
