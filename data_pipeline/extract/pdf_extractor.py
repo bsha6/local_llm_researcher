@@ -105,7 +105,7 @@ class PDFExtractor:
         image_metadata = []
 
         # Extract arxiv_id from pdf_path (e.g., "2501.12948v1" from path)
-        arxiv_id = self.pdf_path.split("/")[-1].split(".")[0]
+        arxiv_id = self.pdf_path.split("/")[-1].split(".pdf")[0]
         
         for page_num in range(len(doc)):
             page = doc[page_num]
