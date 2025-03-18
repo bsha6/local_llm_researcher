@@ -229,7 +229,6 @@ class FaissIndex:
         chunk_ids = []
 
         with DatabaseManager(self.db_path) as cursor:
-            # First insert all chunks into SQLite
             for chunk in chunks:
                 cursor.execute(
                     "INSERT INTO paper_chunks (paper_id, chunk_text) VALUES (?, ?)",
