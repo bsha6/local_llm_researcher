@@ -1,11 +1,9 @@
 import pymupdf
 import os
-import json
 import logging
 from PIL import Image
 import imagehash
 import io
-from pathlib import Path
 from typing import Dict, List, Optional, Set, Generator
 import time
 from contextlib import contextmanager
