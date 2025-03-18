@@ -159,13 +159,13 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
     # Initialize ArXiv fetcher and query for FAISS papers
-    # arxiv_fetcher = ArxivPaperFetcher(query="Facebook AI Semantic Search (FAISS)")
-    # papers = arxiv_fetcher.fetch_arxiv_paper_data(
-    #     max_results=6
-    # )
-    # arxiv_fetcher.display_papers(papers)
-    # arxiv_fetcher.store_papers_in_db(papers)
+    arxiv_fetcher = ArxivPaperFetcher(query="BLIP: Bootstrapping Language-Image Pre-training for Unified Vision-Language Understanding and Generation")
+    papers = arxiv_fetcher.fetch_arxiv_paper_data(
+        max_results=10
+    )
+    arxiv_fetcher.display_papers(papers)
+    arxiv_fetcher.store_papers_in_db(papers)
     
     # Initialize and run pipeline
-    pipeline = PDFPipeline(batch_size=1)
+    pipeline = PDFPipeline(batch_size=20)
     pipeline.process_pdfs()
