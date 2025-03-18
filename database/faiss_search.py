@@ -1,9 +1,11 @@
 import numpy as np
 import sqlite3
+import argparse
 
 from database.faiss_index import FaissIndex
 from data_pipeline.generate_embeddings import E5Embedder
 from utils.file_operations import load_config
+
 config = load_config()
 DB_NAME = config["database"]["arxiv_db_path"]
 
@@ -17,6 +19,17 @@ class FaissSearcher:
         """
         self.faiss_index = faiss_index
         self.db = db
+
+    def rebuild_index(self, embedding_function):
+        """
+        Rebuild the FAISS index using the provided embedding function.
+        
+        :param embedding_function: Function that takes text and returns embeddings
+        :return: None
+        """
+        print("Rebuilding FAISS index...")
+        self.faiss_index.rebuild_index_from_db(embedding_function)
+        print("Index rebuilding complete!")
 
     def search(self, query_embedding: np.ndarray, top_k=5):
         """
@@ -52,33 +65,40 @@ class FaissSearcher:
         return retrieved_chunks
 
 if __name__ == "__main__":
-    # Initialize the embedding model
+    # Set up argument parser
+    parser = argparse.ArgumentParser(description='FAISS search with optional index rebuilding')
+    parser.add_argument('--rebuild', action='store_true', help='Rebuild the FAISS index')
+    args = parser.parse_args()
+    
+    # Initialize components
     embedder = E5Embedder()
-    
-    # Create a test query
-    test_query = "Chain of thought reasoning"
-    
-    # Generate embedding for the test query
-    query_embedding = embedder.generate_embeddings([test_query], mode="query")
-    
-    # Initialize FAISS index and searcher
     faiss_index = FaissIndex()
     faiss_searcher = FaissSearcher(faiss_index)
     
-    # Search for similar chunks
+    # Rebuild index only if specified
+    if args.rebuild:
+        faiss_searcher.rebuild_index(lambda text: embedder.generate_embeddings([text])[0])
+    
+    # Create a test query
+    test_query = "Chain of thought reasoning"
+    query_embedding = embedder.generate_embeddings([test_query], mode="query")
+    
     print(f"\nSearching for chunks similar to: '{test_query}'")
     print("-" * 80)
     
-    # Get both chunk IDs and distances
-    chunk_ids, distances = faiss_index.search(query_embedding, top_k=5)
-    
-    # Get the actual chunk texts
-    chunk_texts = faiss_index.get_chunk_texts(chunk_ids)
-    
-    # Print results
-    for i, (chunk_id, paper_id, chunk_text) in enumerate(chunk_texts):
-        print(f"\nResult {i+1} (Distance: {distances[i]:.4f})")
-        print(f"Paper ID: {paper_id}")
-        print(f"Chunk ID: {chunk_id}")
-        print(f"Text: {chunk_text[:300]}...")
-        print("-" * 80)
+    try:
+        # Get both chunk IDs and distances
+        chunk_ids, distances = faiss_index.search(query_embedding, top_k=5)
+        
+        # Get the actual chunk texts
+        chunk_texts = faiss_index.get_chunk_texts(chunk_ids)
+        
+        # Print results
+        for i, (chunk_id, paper_id, chunk_text) in enumerate(chunk_texts):
+            print(f"\nResult {i+1} (Distance: {distances[i]:.4f})")
+            print(f"Paper ID: {paper_id}")
+            print(f"Chunk ID: {chunk_id}")
+            print(f"Text: {chunk_text[:300]}...")
+            print("-" * 80)
+    except Exception as e:
+        print(f"Error during search: {e}")
