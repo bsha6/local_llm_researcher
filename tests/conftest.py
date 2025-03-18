@@ -23,6 +23,7 @@ def mock_config():
             "query": "test query"
         },
         "storage": {
+            "root_path": "/test/root",
             "save_path": "test_papers/",
         }
     }
@@ -135,3 +136,70 @@ def mock_tokenizer():
         tokenizer_instance.encode.side_effect = lambda sent, add_special_tokens: [0] * (len(sent.split()) + 2)
         mock_tokenizer.return_value = tokenizer_instance
         yield mock_tokenizer
+
+'''PDF Pipeline'''
+
+@pytest.fixture
+def mock_database():
+    """Fixture to mock database operations."""
+    mock_db = MagicMock()
+    mock_cursor = MagicMock()
+    mock_db.__enter__.return_value = mock_cursor
+    mock_cursor.execute = MagicMock()
+    mock_cursor.fetchall = MagicMock(return_value=[])
+    mock_cursor.fetchone = MagicMock()
+    mock_cursor.executemany = MagicMock()
+    return mock_db, mock_cursor
+
+@pytest.fixture
+def mock_faiss():
+    """Fixture to mock FAISS operations."""
+    mock_faiss = MagicMock()
+    mock_faiss.insert_chunks_into_db = MagicMock()
+    mock_faiss.search = MagicMock(return_value=(np.array([[0, 1, 2]]), np.array([[0.1, 0.2, 0.3]])))
+    return mock_faiss
+
+@pytest.fixture
+def mock_pdf_pipeline_dependencies(mocker, mock_database, mock_faiss):
+    """Mock all external dependencies for PDFPipeline."""
+    mock_db, mock_cursor = mock_database
+    
+    # Mock ArxivPaperFetcher
+    mock_fetcher = MagicMock()
+    mock_fetcher.download_arxiv_pdf = MagicMock()
+    mocker.patch('main.ArxivPaperFetcher', return_value=mock_fetcher)
+    
+    # Mock PDFExtractor
+    mock_extractor = MagicMock()
+    mock_extractor.process_pdf = MagicMock(return_value={"text_data": {"1": "Sample text"}})
+    mocker.patch('main.PDFExtractor', return_value=mock_extractor)
+    
+    # Mock TextPreprocessor
+    mock_preprocessor = MagicMock()
+    mock_preprocessor.clean_text = MagicMock(return_value="Cleaned sample text")
+    mocker.patch('main.TextPreprocessor', return_value=mock_preprocessor)
+    
+    # Mock TextChunker
+    mock_chunker = MagicMock()
+    mock_chunker.chunk_text = MagicMock(return_value=["Chunk 1", "Chunk 2"])
+    mocker.patch('main.TextChunker', return_value=mock_chunker)
+    
+    # Mock E5Embedder
+    mock_embedder = MagicMock()
+    mock_embedder.generate_embeddings = MagicMock(return_value=[[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]])
+    mocker.patch('main.E5Embedder', return_value=mock_embedder)
+    
+    # Mock FaissIndex and DatabaseManager
+    mocker.patch('main.FaissIndex', return_value=mock_faiss)
+    mocker.patch('main.DatabaseManager', return_value=mock_db)
+    
+    return {
+        'fetcher': mock_fetcher,
+        'extractor': mock_extractor,
+        'preprocessor': mock_preprocessor,
+        'chunker': mock_chunker,
+        'embedder': mock_embedder,
+        'faiss': mock_faiss,
+        'db': mock_db,
+        'cursor': mock_cursor
+    }
