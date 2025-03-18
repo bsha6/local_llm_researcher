@@ -2,6 +2,7 @@ import numpy as np
 import sqlite3
 
 from database.faiss_index import FaissIndex
+from data_pipeline.generate_embeddings import E5Embedder
 from utils.file_operations import load_config
 config = load_config()
 DB_NAME = config["database"]["arxiv_db_path"]
@@ -51,14 +52,33 @@ class FaissSearcher:
         return retrieved_chunks
 
 if __name__ == "__main__":
-    config = load_config()
-    dim = config["models"]["e5_small"]["dimensions"]
-    # Example Usage
-    # query_embedding = np.random.rand(1, dim).astype(np.float32)  # Replace with actual query embedding
-    # faiss_index = FaissIndex()
-    # faiss_searcher = FaissSearcher(faiss_index)
-    # retrieved_texts = faiss_searcher.search(query_embedding)
-
-    # print("Top Matching Chunks:")
-    # for text in retrieved_texts:
-    #     print(text)
+    # Initialize the embedding model
+    embedder = E5Embedder()
+    
+    # Create a test query
+    test_query = "Chain of thought reasoning"
+    
+    # Generate embedding for the test query
+    query_embedding = embedder.generate_embeddings([test_query], mode="query")
+    
+    # Initialize FAISS index and searcher
+    faiss_index = FaissIndex()
+    faiss_searcher = FaissSearcher(faiss_index)
+    
+    # Search for similar chunks
+    print(f"\nSearching for chunks similar to: '{test_query}'")
+    print("-" * 80)
+    
+    # Get both chunk IDs and distances
+    chunk_ids, distances = faiss_index.search(query_embedding, top_k=5)
+    
+    # Get the actual chunk texts
+    chunk_texts = faiss_index.get_chunk_texts(chunk_ids)
+    
+    # Print results
+    for i, (chunk_id, paper_id, chunk_text) in enumerate(chunk_texts):
+        print(f"\nResult {i+1} (Distance: {distances[i]:.4f})")
+        print(f"Paper ID: {paper_id}")
+        print(f"Chunk ID: {chunk_id}")
+        print(f"Text: {chunk_text[:500]}...")  # Show first 200 chars
+        print("-" * 80)
