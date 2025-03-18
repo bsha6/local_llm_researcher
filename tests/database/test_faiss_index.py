@@ -88,7 +88,7 @@ def test_insert_chunks_into_db(faiss_index, mocker):
     
     # Mock the embedding model
     mock_embedding_model = mocker.MagicMock()
-    mock_embedding = np.random.rand(faiss_index.dim).astype(np.float32)
+    mock_embedding = np.random.rand(2, faiss_index.dim).astype(np.float32)  # Shape for 2 chunks
     mock_embedding_model.return_value = mock_embedding
     
     # Mock add_embeddings to verify it's called correctly
@@ -117,10 +117,9 @@ def test_insert_chunks_into_db(faiss_index, mocker):
     ]
     mock_cursor.execute.assert_has_calls(expected_calls, any_order=False)
     
-    # Verify embedding model was called for each chunk
-    assert mock_embedding_model.call_count == 2
-    mock_embedding_model.assert_any_call("This is chunk 1")
-    mock_embedding_model.assert_any_call("This is chunk 2")
+    # Verify embedding model was called once with all chunks
+    assert mock_embedding_model.call_count == 1
+    mock_embedding_model.assert_called_once_with(chunks)
     
     # Verify add_embeddings was called with correct parameters
     faiss_index.add_embeddings.assert_called_once()
