@@ -23,7 +23,7 @@ class RAGPipeline:
                  num_chunks: int = 3,
                  temperature: float = 0.7):
         """
-        Initialize the RAG pipeline with FAISS search and Llama 2.
+        Initialize the RAG pipeline with FAISS search and Ollama model.
         
         :param faiss_searcher: Instance of FaissSearcher for retrieval
         :param embedder: Instance of E5Embedder for query embedding
@@ -104,7 +104,7 @@ class RAGPipeline:
 
     def generate_prompt(self, query: str, context_chunks: List[Tuple[str, float]]) -> str:
         """
-        Generate a prompt for Llama 2 using retrieved context.
+        Generate a prompt for Llama using retrieved context.
         
         :param query: User query
         :param context_chunks: List of (chunk_text, relevance_score) tuples
@@ -139,7 +139,7 @@ Please provide a clear and concise answer based on the above research excerpts. 
 
     def query_llama(self, prompt: str) -> str:
         """
-        Query Llama 2 through Ollama API.
+        Query Llama 3.2 through Ollama API.
         
         :param prompt: Formatted prompt
         :return: Llama's response
@@ -166,7 +166,7 @@ Please provide a clear and concise answer based on the above research excerpts. 
             return result
             
         except requests.exceptions.RequestException as e:
-            error_msg = f"Error querying Llama 2: {str(e)}"
+            error_msg = f"Error querying Llama: {str(e)}"
             logger.error(error_msg, exc_info=True)
             return error_msg
 
@@ -189,7 +189,7 @@ Please provide a clear and concise answer based on the above research excerpts. 
             # 2. Generate prompt with context
             prompt = self.generate_prompt(query, relevant_chunks)
             
-            # 3. Get response from Llama 2
+            # 3. Get response from Llama
             answer = self.query_llama(prompt)
             
             logger.info("Successfully generated answer")
