@@ -201,21 +201,37 @@ Please provide a clear and concise answer based on the above research excerpts. 
             return error_msg
 
 def main():
-    # Example usage
+    # Initialize RAG pipeline
     rag = RAGPipeline()
     
-    # Example query
-    query = "What are the main advantages of chain-of-thought reasoning?"
+    print("\nWelcome to the Research Paper Q&A System!")
+    print("Enter your questions below. Type 'exit' to quit.\n")
     
-    print(f"\nQuestion: {query}")
-    print("\nGenerating answer...")
-    
-    try:
-        answer = rag.answer_question(query)
-        print(f"\nAnswer: {answer}")
-    except Exception as e:
-        print(f"\nError: {str(e)}")
-        logger.error("Error in main", exc_info=True)
+    while True:
+        try:
+            # Get user input
+            query = input("\nYour question (or 'exit' to quit): ").strip()
+            
+            # Check if user wants to exit
+            if query.lower() in ['exit', 'quit']:
+                print("\nThank you for using the Research Paper Q&A System!")
+                break
+            
+            # Skip empty queries
+            if not query:
+                print("Please enter a valid question.")
+                continue
+            
+            print("\nGenerating answer...")
+            answer = rag.answer_question(query)
+            print(f"\nAnswer: {answer}")
+            
+        except KeyboardInterrupt:
+            print("\n\nExiting the program...")
+            break
+        except Exception as e:
+            print(f"\nError: {str(e)}")
+            logger.error("Error in main", exc_info=True)
 
 if __name__ == "__main__":
     main() 
