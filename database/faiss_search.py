@@ -1,10 +1,14 @@
 import numpy as np
 import sqlite3
 import argparse
+import os
+import gc
+import torch
 
 from database.faiss_index import FaissIndex
 from data_pipeline.generate_embeddings import E5Embedder
 from utils.file_operations import load_config
+from database.sqlite_db import DatabaseManager
 
 config = load_config()
 DB_NAME = config["database"]["arxiv_db_path"]
@@ -23,13 +27,99 @@ class FaissSearcher:
     def rebuild_index(self, embedding_function):
         """
         Rebuild the FAISS index using the provided embedding function.
+        Uses a two-phase approach: build with FlatL2, then convert to HNSW for searching.
         
         :param embedding_function: Function that takes text and returns embeddings
         :return: None
         """
-        print("Rebuilding FAISS index...")
-        self.faiss_index.rebuild_index_from_db(embedding_function)
-        print("Index rebuilding complete!")
+        print("Starting FAISS index rebuild...")
+        
+        # Delete existing index file if it exists
+        if os.path.exists(self.faiss_index.index_path):
+            print(f"Removing existing index file: {self.faiss_index.index_path}")
+            os.remove(self.faiss_index.index_path)
+        
+        # Reset to a fresh FlatL2 index
+        self.faiss_index.reset()
+        gc.collect()  # Force garbage collection
+        torch.cuda.empty_cache()  # Clear CUDA cache if available
+        
+        try:
+            with DatabaseManager(self.db) as cursor:
+                # Get total count first
+                cursor.execute("SELECT COUNT(*) FROM paper_chunks")
+                total_chunks = cursor.fetchone()[0]
+                
+                if total_chunks == 0:
+                    print("No chunks found in database")
+                    return
+                
+                print(f"Found {total_chunks} chunks in database")
+                print("Building with FlatL2 index for stability...")
+                
+                # Process in larger batches for FlatL2
+                batch_size = 200  # Larger batches for faster FlatL2 processing
+                processed = 0
+                
+                while processed < total_chunks:
+                    # Clear memory from previous batch
+                    gc.collect()
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                    
+                    # Get next batch
+                    cursor.execute("""
+                        SELECT chunk_id, chunk_text 
+                        FROM paper_chunks 
+                        LIMIT ? OFFSET ?
+                    """, (batch_size, processed))
+                    
+                    batch = cursor.fetchall()
+                    if not batch:
+                        break
+                    
+                    try:
+                        # Process batch
+                        chunk_ids = [chunk[0] for chunk in batch]
+                        chunk_texts = [chunk[1] for chunk in batch]
+                        
+                        # Generate embeddings for batch
+                        embeddings = embedding_function(chunk_texts)
+                        
+                        # Ensure correct shape
+                        if isinstance(embeddings, list):
+                            embeddings = np.array(embeddings)
+                        if embeddings.ndim == 1:
+                            embeddings = embeddings.reshape(1, -1)
+                        
+                        # Convert to float32 and ensure contiguous
+                        embeddings = np.ascontiguousarray(embeddings.astype('float32'))
+                        
+                        # Add to FAISS index
+                        self.faiss_index.add_embeddings(embeddings, chunk_ids)
+                        
+                        processed += len(batch)
+                        print(f"Processed {processed}/{total_chunks} chunks")
+                        
+                        # Clear embeddings from memory
+                        del embeddings
+                        gc.collect()
+                            
+                    except Exception as e:
+                        print(f"Error processing batch: {e}")
+                        processed += len(batch)  # Skip problematic batch
+                        continue
+                    
+                print("\nFlatL2 build complete!")
+                print(f"Index contains {self.faiss_index.index.ntotal} vectors")
+                
+                # Convert to HNSW for faster searching
+                print("\nConverting to HNSW index for faster searching...")
+                self.faiss_index.convert_to_hnsw()
+                
+        except Exception as e:
+            print(f"Error during rebuild: {e}")
+            raise
 
     def search(self, query_embedding: np.ndarray, top_k=5):
         """
@@ -70,23 +160,23 @@ if __name__ == "__main__":
     parser.add_argument('--rebuild', action='store_true', help='Rebuild the FAISS index')
     args = parser.parse_args()
     
-    # Initialize components
-    embedder = E5Embedder()
-    faiss_index = FaissIndex()
-    faiss_searcher = FaissSearcher(faiss_index)
-    
-    # Rebuild index only if specified
-    if args.rebuild:
-        faiss_searcher.rebuild_index(lambda text: embedder.generate_embeddings([text])[0])
-    
-    # Create a test query
-    test_query = "Chain of thought reasoning"
-    query_embedding = embedder.generate_embeddings([test_query], mode="query")
-    
-    print(f"\nSearching for chunks similar to: '{test_query}'")
-    print("-" * 80)
-    
     try:
+        # Initialize components
+        embedder = E5Embedder()
+        faiss_index = FaissIndex()
+        faiss_searcher = FaissSearcher(faiss_index)
+        
+        # Rebuild index if specified
+        if args.rebuild:
+            faiss_searcher.rebuild_index(lambda text: embedder.generate_embeddings(text, mode="query"))
+        
+        # Create a test query
+        test_query = "Chain of thought reasoning"
+        query_embedding = embedder.generate_embeddings([test_query], mode="query")
+        
+        print(f"\nSearching for chunks similar to: '{test_query}'")
+        print("-" * 80)
+        
         # Get both chunk IDs and distances
         chunk_ids, distances = faiss_index.search(query_embedding, top_k=5)
         
@@ -100,5 +190,7 @@ if __name__ == "__main__":
             print(f"Chunk ID: {chunk_id}")
             print(f"Text: {chunk_text[:300]}...")
             print("-" * 80)
+            
     except Exception as e:
-        print(f"Error during search: {e}")
+        print(f"Error: {e}")
+        raise

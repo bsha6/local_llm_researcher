@@ -1,5 +1,6 @@
 import faiss
 import numpy as np
+import os
 
 from utils.file_operations import load_config
 from database.sqlite_db import DatabaseManager
@@ -11,54 +12,101 @@ DIM = config["models"]["e5_small"]["dimensions"]
 
 class FaissIndex:
     def __init__(self, index_path="faiss_index.idx", db_path=ARXIV_DB_PATH, dim=DIM, 
-                 use_hnsw=True, M=32, efConstruction=100, efSearch=40, batch_size=1000):
+                 M=16, efConstruction=40, efSearch=16, flat_batch_size=200, hnsw_batch_size=10):
         """
-        Initialize FAISS index with optimized HNSW for fast approximate nearest neighbor search.
+        Initialize FAISS index with support for both FlatL2 and HNSW indices.
         
         :param index_path: Path to store FAISS index.
         :param db_path: Path to SQLite database.
         :param dim: Embedding dimension (E5-small outputs 384D).
-        :param use_hnsw: Whether to use HNSW (recommended for local + fast queries).
         :param M: Number of connections per layer in HNSW graph (higher = better recall but more memory).
         :param efConstruction: Size of the dynamic candidate list for construction (higher = better quality but slower build).
         :param efSearch: Size of the dynamic candidate list for search (higher = better recall but slower search).
-        :param batch_size: Number of records to write in a single batch.
+        :param flat_batch_size: Batch size for FlatL2 operations (can be larger for faster processing).
+        :param hnsw_batch_size: Batch size for HNSW operations (should be smaller for stability).
         """
         self.index_path = index_path
         self.db_path = db_path
         self.dim = dim
-        self.use_hnsw = use_hnsw
         self.M = M
         self.efConstruction = efConstruction
         self.efSearch = efSearch
-        self.batch_size = batch_size
+        self.flat_batch_size = flat_batch_size
+        self.hnsw_batch_size = hnsw_batch_size
+        self.is_hnsw = False
+        
         self.index = self._initialize_index()
 
     def _initialize_index(self):
-        """Creates or loads a FAISS index with optimized HNSW parameters."""
+        """Creates or loads a FAISS index."""
         try:
-            index = faiss.read_index(self.index_path)
-            if isinstance(index, faiss.IndexHNSWFlat):
-                index.hnsw.efSearch = self.efSearch
-            print(f"Loaded existing FAISS index with {index.ntotal} vectors.")
-            return index
+            if os.path.exists(self.index_path):
+                index = faiss.read_index(self.index_path)
+                self.is_hnsw = isinstance(index, faiss.IndexHNSWFlat)
+                if self.is_hnsw:
+                    index.hnsw.efSearch = self.efSearch
+                print(f"Loaded existing {'HNSW' if self.is_hnsw else 'FlatL2'} index with {index.ntotal} vectors")
+                return index
         except Exception as e:
             print(f"Could not load index: {e}")
-            print("Creating a new FAISS index...")
-            if self.use_hnsw:
-                # Initialize HNSW index with optimized parameters
-                index = faiss.IndexHNSWFlat(self.dim, self.M)
-                index.hnsw.efConstruction = self.efConstruction
-                index.hnsw.efSearch = self.efSearch
-            else:
-                index = faiss.IndexFlatL2(self.dim)  # Brute-force search
+        
+        print("Creating new FlatL2 index for building phase...")
+        # Start with FlatL2 for stable building
+        index = faiss.IndexFlatL2(self.dim)
+        self.is_hnsw = False
+        
+        # Set thread settings for better stability
+        faiss.omp_set_num_threads(4)
+        return index
 
-            return index
-
+    def convert_to_hnsw(self):
+        """Convert FlatL2 index to HNSW for faster searching."""
+        if self.is_hnsw:
+            print("Index is already an HNSW index")
+            return
+            
+        if not isinstance(self.index, faiss.IndexFlatL2):
+            print("Index is not suitable for conversion")
+            return
+            
+        print("\nConverting FlatL2 to HNSW index...")
+        print(f"Current index contains {self.index.ntotal} vectors")
+        
+        try:
+            # Create new HNSW index
+            hnsw_index = faiss.IndexHNSWFlat(self.dim, self.M)
+            hnsw_index.hnsw.efConstruction = self.efConstruction
+            hnsw_index.hnsw.efSearch = self.efSearch
+            
+            total_vectors = self.index.ntotal
+            
+            # Process in small batches for stability
+            for i in range(0, total_vectors, self.hnsw_batch_size):
+                end_idx = min(i + self.hnsw_batch_size, total_vectors)
+                # Get batch of vectors
+                vectors = np.zeros(((end_idx - i), self.dim), dtype=np.float32)
+                self.index.reconstruct_n(i, end_idx - i, vectors)
+                
+                # Add to HNSW index
+                hnsw_index.add(vectors)
+                print(f"Converted vectors {i} to {end_idx} of {total_vectors}")
+            
+            # Replace the index
+            self.index = hnsw_index
+            self.is_hnsw = True
+            
+            # Save the converted index
+            self.save_index()
+            print(f"Successfully converted to HNSW index with {self.index.ntotal} vectors")
+            
+        except Exception as e:
+            print(f"Error during conversion: {e}")
+            print("Keeping original FlatL2 index")
 
     def add_embeddings(self, embeddings: np.ndarray, chunk_ids: list):
         """
-        Adds embeddings to the FAISS index and updates the paper_chunks table with FAISS indices.
+        Adds embeddings to the FAISS index and updates the paper_chunks table.
+        Uses appropriate batch size based on index type.
         
         :param embeddings: Numpy array of embeddings to add
         :param chunk_ids: List of chunk IDs from SQLite corresponding to each embedding
@@ -69,24 +117,31 @@ class FaissIndex:
         # Get the current index size before adding
         start_idx = self.index.ntotal
         
-        # Add embeddings to FAISS index
-        self.index.add(embeddings)
+        # Use appropriate batch size based on index type
+        batch_size = self.hnsw_batch_size if self.is_hnsw else self.flat_batch_size
         
-        # Prepare batch updates for the database
-        updates = [(start_idx + i, chunk_id) for i, chunk_id in enumerate(chunk_ids)]
-        
-        # Update the paper_chunks table in batches
-        with DatabaseManager(self.db_path) as cursor:
-            for i in range(0, len(updates), self.batch_size):
-                batch = updates[i:i + self.batch_size]
+        # Process in batches
+        for i in range(0, len(embeddings), batch_size):
+            batch_end = min(i + batch_size, len(embeddings))
+            batch_embeddings = embeddings[i:batch_end]
+            batch_chunk_ids = chunk_ids[i:batch_end]
+            
+            # Add embeddings to FAISS index
+            self.index.add(batch_embeddings)
+            
+            # Prepare updates for this batch
+            updates = [(start_idx + j, chunk_id) for j, chunk_id in enumerate(batch_chunk_ids, start=i)]
+            
+            # Update the paper_chunks table
+            with DatabaseManager(self.db_path) as cursor:
                 cursor.executemany(
                     'UPDATE paper_chunks SET faiss_idx = ? WHERE chunk_id = ?',
-                    batch
+                    updates
                 )
-        
-        self.save_index()
-        
-        print(f"Added {len(chunk_ids)} embeddings with corresponding chunk IDs")
+            
+            # Save after each batch for safety
+            self.save_index()
+            print(f"Added {len(batch_chunk_ids)} embeddings with corresponding chunk IDs")
 
     def save_index(self):
         """Saves FAISS index to disk."""
@@ -96,11 +151,16 @@ class FaissIndex:
     def search(self, query_embedding: np.ndarray, top_k=5):
         """
         Search FAISS index for nearest neighbors and return their chunk IDs.
+        Automatically converts to HNSW if still in building mode.
         
         :param query_embedding: Embedding vector to search for
         :param top_k: Number of results to return
         :return: Tuple of (chunk_ids, distances)
         """
+        # Convert to HNSW if we're still in building mode
+        if isinstance(self.index, faiss.IndexFlatL2):
+            self.convert_to_hnsw()
+        
         if query_embedding.ndim == 1:
             query_embedding = query_embedding.reshape(1, -1)
         assert query_embedding.shape[1] == self.dim, "Query embedding dimension mismatch!"
@@ -145,13 +205,6 @@ class FaissIndex:
         
         return chunk_ids, distances[0]
 
-    def reset_faiss_indices(self):
-        """Reset all FAISS indices in the paper_chunks table."""
-        with DatabaseManager(self.db_path) as cursor:
-            cursor.execute('UPDATE paper_chunks SET faiss_idx = NULL')
-        self.index.reset()
-        print("FAISS index and paper_chunks.faiss_idx values reset")
-    
     def get_chunk_texts(self, chunk_ids):
         """
         Retrieve the text content for the given chunk IDs.
@@ -178,6 +231,14 @@ class FaissIndex:
         with DatabaseManager(self.db_path) as cursor:
             cursor.execute(query, chunk_ids)
             return cursor.fetchall()
+
+    def reset(self):
+        """Reset to a fresh FlatL2 index for rebuilding."""
+        self.index = faiss.IndexFlatL2(self.dim)
+        self.is_hnsw = False
+        with DatabaseManager(self.db_path) as cursor:
+            cursor.execute('UPDATE paper_chunks SET faiss_idx = NULL')
+        print("Index reset to FlatL2 and paper_chunks.faiss_idx values cleared")
 
     def rebuild_index_from_db(self, embedding_model):
         """
@@ -210,8 +271,8 @@ class FaissIndex:
             chunks = cursor.fetchall()
             
             # Process in batches
-            for i in range(0, len(chunks), self.batch_size):
-                batch = chunks[i:i+self.batch_size]
+            for i in range(0, len(chunks), self.flat_batch_size):
+                batch = chunks[i:i+self.flat_batch_size]
                 
                 chunk_ids = [chunk[0] for chunk in batch]
                 chunk_texts = [chunk[1] for chunk in batch]
@@ -222,7 +283,7 @@ class FaissIndex:
                 # Add to FAISS index and update database
                 self.add_embeddings(embeddings, chunk_ids)
                 
-                print(f"Processed {min(i + self.batch_size, total_chunks)}/{total_chunks} chunks")
+                print(f"Processed {min(i + self.flat_batch_size, total_chunks)}/{total_chunks} chunks")
             
             self.save_index()
             print(f"FAISS index rebuilt with {self.index.ntotal} vectors")
