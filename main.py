@@ -1,6 +1,7 @@
 import logging
-from typing import List, Dict
+from typing import List, Dict, Optional
 import os
+from tqdm import tqdm
 
 from data_pipeline.arxiv_api import ArxivPaperFetcher
 from data_pipeline.extract.pdf_extractor import PDFExtractor
@@ -23,6 +24,7 @@ class PDFPipeline:
         self.faiss_index = FaissIndex()
         self.embedder = E5Embedder()
         self.arxiv_fetcher = ArxivPaperFetcher()
+        self.query = self.config["arxiv"]["query"]
         
         # Ensure save path exists
         os.makedirs(self.root_path, exist_ok=True)
@@ -153,19 +155,37 @@ class PDFPipeline:
         except Exception as e:
             logging.error(f"Error in process_pdfs: {e}")
             raise
+    
+    def query_and_process_arxiv(self, max_results: int = 10, query: Optional[str] = None) -> None:
+        """
+        Query ArXiv for papers and process them through the pipeline.
+        
+        Args:
+            query: Optional search query string. If None, uses the default query from initialization.
+        """
+        # Use self.query as default if no query provided
+        if query is None:
+            query = self.query
+
+        papers = self.arxiv_fetcher.fetch_arxiv_paper_data(
+            max_results=max_results,
+            query=query
+        )
+        self.arxiv_fetcher.display_papers(papers)
+        self.arxiv_fetcher.store_papers_in_db(papers)
+        
+        # Process the papers using the current pipeline instance
+        self.process_pdfs()
 
 if __name__ == "__main__":
+    # TODO: rename this file?
     # Configure logging
     logging.basicConfig(level=logging.INFO)
 
-    # Initialize ArXiv fetcher and query for FAISS papers
-    arxiv_fetcher = ArxivPaperFetcher(query="BLIP: Bootstrapping Language-Image Pre-training for Unified Vision-Language Understanding and Generation")
-    papers = arxiv_fetcher.fetch_arxiv_paper_data(
-        max_results=10
-    )
-    arxiv_fetcher.display_papers(papers)
-    arxiv_fetcher.store_papers_in_db(papers)
-    
-    # Initialize and run pipeline
-    pipeline = PDFPipeline(batch_size=20)
-    pipeline.process_pdfs()
+    pipeline = PDFPipeline(batch_size=10)
+    queries = [
+        "Reinforcement Learning (RL)",
+        "Reinforcement Learning (RL) with Human Feedback",
+    ]
+    for q in tqdm(queries):
+        pipeline.query_and_process_arxiv(query = q)
