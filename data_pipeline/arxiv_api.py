@@ -9,17 +9,14 @@ from database.sqlite_db import DatabaseManager
 from utils.file_operations import load_config
 from utils.pdf_operations import compress_pdf
 
-config = load_config()
-QUERY = config["arxiv"]["query"]
-
 
 class ArxivPaperFetcher:
     """Class for fetching, displaying, and storing ArXiv papers."""
 
-    def __init__(self, query=QUERY):
+    def __init__(self):
         """Initialize with configuration."""
-        self.query = query
         self.config = load_config()
+        self.query = self.config["arxiv"]["query"]
         self.save_path = self.config["storage"]["save_path"]
         self.db_path = self.config["database"]["arxiv_db_path"]
         
@@ -27,12 +24,8 @@ class ArxivPaperFetcher:
         os.makedirs(self.save_path, exist_ok=True)
         os.makedirs(os.path.join(self.save_path, "arxiv"), exist_ok=True)
 
-    def set_query(self, query: str):
-        """Set the ArXiv search query."""
-        self.query = query
-        return self
 
-    def _store_query_history(self, max_results: int, results_returned: int, category: str = None) -> int:
+    def _store_query_history(self, query: str, max_results: int, results_returned: int, category: str = None) -> int:
         """
         Store query execution history in the database.
         
@@ -45,12 +38,15 @@ class ArxivPaperFetcher:
             cursor.execute("""
                 INSERT INTO query_history (query_text, max_results, results_returned, category)
                 VALUES (?, ?, ?, ?)
-            """, (self.query, max_results, results_returned, category))
+            """, (query, max_results, results_returned, category))
             return cursor.lastrowid
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=2))
-    def fetch_arxiv_paper_data(self, max_results: int = 5, sort_by: str = "relevance", category: str = None):
+    def fetch_arxiv_paper_data(self, query: str = None, max_results: int = 5, sort_by: str = "relevance", category: str = None, store_query: bool = True):
         """Fetches papers from ArXiv."""
+        if query is None:
+            query = self.query
+
         if sort_by.lower() == "date":
             sort_criterion = arxiv.SortCriterion.SubmittedDate
         else:
@@ -58,7 +54,7 @@ class ArxivPaperFetcher:
 
         client = arxiv.Client()
         search = arxiv.Search(
-            query=self.query,
+            query=query,
             max_results=max_results,
             sort_by=sort_criterion
         )
@@ -82,7 +78,8 @@ class ArxivPaperFetcher:
             papers.append(paper_data)
         
         # Store query history after successful fetch
-        self._store_query_history(max_results, len(papers), category)
+        if store_query:
+            self._store_query_history(query, max_results, len(papers), category)
         
         return papers
 
@@ -216,7 +213,7 @@ class ArxivPaperFetcher:
 if __name__ == "__main__":
     try:
         fetcher = ArxivPaperFetcher()
-        papers = fetcher.fetch_arxiv_paper_data(sort_by="date")
+        papers = fetcher.fetch_arxiv_paper_data(query="TEST reinforcement learning", sort_by="date")
         fetcher.display_papers(papers)
         # fetcher.store_papers_in_db(papers)
         # logging.info(f"✅ Successfully stored {len(papers)} papers in the database!")
