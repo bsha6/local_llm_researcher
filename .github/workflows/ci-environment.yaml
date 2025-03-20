@@ -10,6 +10,7 @@ dependencies:
   - pandas
   - faiss-cpu
   - transformers
+  - torch
   - spacy
   - elasticsearch
   - arxiv
@@ -18,4 +19,8 @@ dependencies:
   - pyyaml
   - requests
   - tqdm
-  - pip 
+  - tenacity
+  - pydantic
+  - python-dateutil
+  - pip:
+    - pytest-mock
