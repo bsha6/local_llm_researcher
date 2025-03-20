@@ -1,0 +1,21 @@
+name: test-env
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pytest
+  - pytest-cov
+  - numpy
+  - pandas
+  - faiss-cpu
+  - transformers
+  - spacy
+  - elasticsearch
+  - arxiv
+  - beautifulsoup4
+  - huggingface_hub
+  - pyyaml
+  - requests
+  - tqdm
+  - pip 
