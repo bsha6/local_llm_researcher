@@ -1,8 +1,32 @@
 import pytest
+from unittest.mock import patch
+import os
+
+# Mock config before importing any modules that might use it
+@pytest.fixture(autouse=True)
+def mock_config_globally():
+    """Fixture to mock config loading globally before any imports."""
+    mock_config = {
+        "database": {
+            "arxiv_db_path": ":memory:",
+            "faiss_index_path": "test_index.idx"
+        },
+        "arxiv": {
+            "query": "test query"
+        },
+        "storage": {
+            "root_path": "/test/root",
+            "save_path": "test_papers/"
+        }
+    }
+    with patch("utils.file_operations.load_config", return_value=mock_config):
+        yield mock_config
+
+# Now we can safely import modules that depend on config
 import numpy as np
 import tempfile
 import json
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 
 from database.faiss_index import FaissIndex
 
