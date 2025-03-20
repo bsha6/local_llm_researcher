@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List, Tuple, Optional, Dict
 import requests
 import numpy as np
 import logging
@@ -12,9 +12,15 @@ from utils.file_operations import load_config
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-config = load_config()
-
 class RAGPipeline:
+    _config = None
+
+    @classmethod
+    def get_config(cls):
+        if cls._config is None:
+            cls._config = load_config()
+        return cls._config
+
     def __init__(self, 
                  faiss_searcher: FaissSearcher = None,
                  embedder: E5Embedder = None,
@@ -32,6 +38,7 @@ class RAGPipeline:
         :param num_chunks: Number of chunks to retrieve
         :param temperature: Temperature for LLM generation
         """
+        self.config = self.get_config()
         self.faiss_searcher = faiss_searcher or FaissSearcher(FaissIndex())
         self.embedder = embedder or E5Embedder()
         self.ollama_url = ollama_url

@@ -1,30 +1,29 @@
 import sqlite3
 import logging
-
+from typing import Optional
 from utils.file_operations import load_config
 
 
-# Load configuration
-config = load_config()
-
-ARXIV_DB_PATH = config["database"]["arxiv_db_path"]
-
-
 class DatabaseManager:
-    """Context manager for SQLite database connections."""
-    
-    def __init__(self, db_path):
-        self.db_path = db_path
+    _config = None
+
+    @classmethod
+    def get_config(cls):
+        if cls._config is None:
+            cls._config = load_config()
+        return cls._config
+
+    def __init__(self, db_path: Optional[str] = None):
+        config = self.get_config()
+        self.db_path = db_path or config["database"]["arxiv_db_path"]
 
     def __enter__(self):
         self.conn = sqlite3.connect(self.db_path)
-        self.cursor = self.conn.cursor()
-        return self.cursor
+        return self.conn.cursor()
 
-    def __exit__(self, exc_type, exc_value, traceback):
-        if exc_type:
-            logging.error(f"Database error: {exc_value}")
-        self.conn.commit()
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is None:
+            self.conn.commit()
         self.conn.close()
     
     def init_db(self):
@@ -84,5 +83,5 @@ class DatabaseManager:
 
 
 if __name__ == "__main__":
-    db = DatabaseManager(ARXIV_DB_PATH)
+    db = DatabaseManager()
     db.init_db()

@@ -5,30 +5,30 @@ import tempfile
 import json
 from utils.file_operations import ConfigLoader
 
-# Mock config before importing any modules that might use it
+# Define a consistent mock config structure
+MOCK_CONFIG = {
+    "database": {
+        "arxiv_db_path": ":memory:",
+        "faiss_index_path": "test_index.idx"
+    },
+    "arxiv": {
+        "query": "test query"
+    },
+    "storage": {
+        "root_path": "/test/root",
+        "save_path": "test_papers/"
+    }
+}
+
 @pytest.fixture(autouse=True)
 def mock_config_globally():
     """Fixture to mock config loading globally before any imports."""
-    mock_config = {
-        "database": {
-            "arxiv_db_path": ":memory:",
-            "faiss_index_path": "test_index.idx"
-        },
-        "arxiv": {
-            "query": "test query"
-        },
-        "storage": {
-            "root_path": "/test/root",
-            "save_path": "test_papers/"
-        }
-    }
-    
     # Reset the singleton and set up our mock config
     ConfigLoader.reset()
     loader = ConfigLoader.get_instance()
-    loader._config = mock_config
+    loader._config = MOCK_CONFIG.copy()
     
-    yield mock_config
+    yield MOCK_CONFIG.copy()
     
     # Clean up after the test
     ConfigLoader.reset()
@@ -46,38 +46,15 @@ hooks, and other test setup that should be available across multiple test files.
 @pytest.fixture
 def mock_config():
     """Fixture that provides a mock configuration dictionary for testing."""
-    return {
-        "database": {
-            "arxiv_db_path": ":memory:"
-        },
-        "arxiv": {
-            "query": "test query"
-        },
-        "storage": {
-            "root_path": "/test/root",
-            "save_path": "test_papers/",
-        }
-    }
+    return MOCK_CONFIG.copy()
 
 @pytest.fixture
 def temp_config_file(tmp_path):
     """Fixture to create a temporary config file."""
     temp_file = tmp_path / "test_config.yaml"  # Ensure this is a Path object
-    config_data = {
-        "database": {
-            "arxiv_db_path": ":memory:"
-        },
-        "arxiv": {
-            "query": "test query"
-        },
-        "storage": {
-            "root_path": "/test/root",
-            "save_path": "test_papers/",
-        }
-    }
     
     with open(temp_file, "w") as f:
-        json.dump(config_data, f)
+        json.dump(MOCK_CONFIG, f)
     
     return temp_file  # Return a Path object, not a string
 
