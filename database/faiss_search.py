@@ -4,7 +4,7 @@ import argparse
 import os
 import gc
 import torch
-from typing import List, Tuple, Optional, Dict
+from typing import Optional
 
 from database.faiss_index import FaissIndex
 from data_pipeline.generate_embeddings import E5Embedder
