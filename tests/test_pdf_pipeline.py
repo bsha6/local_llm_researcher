@@ -1,9 +1,10 @@
 from unittest.mock import patch
 import os
+import pytest
 
 from main import PDFPipeline
 
-
+@pytest.mark.usefixtures("mock_config_globally")
 def test_pdf_pipeline_initialization(mock_config):
     """Test that PDFPipeline initializes correctly with config."""
     with patch('main.load_config', return_value=mock_config), \

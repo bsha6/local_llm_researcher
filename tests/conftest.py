@@ -3,6 +3,7 @@ from unittest.mock import patch, MagicMock
 import numpy as np
 import tempfile
 import json
+import os
 from utils.file_operations import ConfigLoader
 
 # Define a consistent mock config structure
@@ -17,8 +18,34 @@ MOCK_CONFIG = {
     "storage": {
         "root_path": "/test/root",
         "save_path": "test_papers/"
+    },
+    "models": {
+        "e5_small": {
+            "dimensions": 384
+        }
     }
 }
+
+# Create a temporary config file at the expected location
+def pytest_configure(config):
+    """Create a temporary config file before any tests run."""
+    config_dir = os.path.dirname(os.path.abspath(__file__))
+    root_dir = os.path.dirname(config_dir)
+    config_path = os.path.join(root_dir, "config.yaml")
+    
+    # Write the mock config to the file
+    with open(config_path, "w") as f:
+        json.dump(MOCK_CONFIG, f)
+
+def pytest_unconfigure(config):
+    """Clean up the temporary config file after all tests are done."""
+    config_dir = os.path.dirname(os.path.abspath(__file__))
+    root_dir = os.path.dirname(config_dir)
+    config_path = os.path.join(root_dir, "config.yaml")
+    
+    # Remove the temporary config file
+    if os.path.exists(config_path):
+        os.remove(config_path)
 
 @pytest.fixture(autouse=True)
 def mock_config_globally():
@@ -34,7 +61,6 @@ def mock_config_globally():
     ConfigLoader.reset()
 
 # Now we can safely import modules that depend on config
-
 from database.faiss_index import FaissIndex
 
 """

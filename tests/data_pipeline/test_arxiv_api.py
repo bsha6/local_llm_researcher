@@ -5,8 +5,10 @@ from datetime import datetime
 from tenacity import RetryError
 from arxiv import SortCriterion
 
+# Import after mock config is set up
 from data_pipeline.arxiv_api import ArxivPaperFetcher
 
+@pytest.mark.usefixtures("mock_config_globally")
 class TestArxivAPI(unittest.TestCase):
     
     @patch('data_pipeline.arxiv_api.arxiv.Client')
