@@ -3,7 +3,7 @@ from unittest.mock import patch, MagicMock
 
 from database.sqlite_db import DatabaseManager
 
-
+@pytest.mark.usefixtures("mock_config_globally")
 class TestDatabaseManager:
     
     @pytest.fixture
@@ -29,7 +29,7 @@ class TestDatabaseManager:
     def test_fetch_metadata_with_params(self, mock_sqlite3_connect):
         """Test _fetch_metadata with query parameters."""
         # Setup
-        test_db_path = "test.db"
+        test_db_path = ":memory:"
         test_query = "SELECT * FROM test_table WHERE id = ?"
         test_params = (1,)
         expected_result = [(1, "test_data")]
@@ -50,7 +50,7 @@ class TestDatabaseManager:
     def test_fetch_metadata_without_params(self, mock_sqlite3_connect):
         """Test _fetch_metadata without query parameters."""
         # Setup
-        test_db_path = "test.db"
+        test_db_path = ":memory:"
         test_query = "SELECT * FROM test_table"
         expected_result = [(1, "test_data"), (2, "more_data")]
         
@@ -70,7 +70,7 @@ class TestDatabaseManager:
     def test_fetch_metadata_empty_result(self, mock_sqlite3_connect):
         """Test _fetch_metadata when no results are returned."""
         # Setup
-        test_db_path = "test.db"
+        test_db_path = ":memory:"
         test_query = "SELECT * FROM empty_table"
         expected_result = []
         
@@ -91,7 +91,7 @@ class TestDatabaseManager:
     def test_fetch_metadata_context_manager_usage(self, mock_exit, mock_enter, mock_sqlite3_connect):
         """Test that _fetch_metadata correctly uses the DatabaseManager context manager."""
         # Setup
-        test_db_path = "test.db"
+        test_db_path = ":memory:"
         test_query = "SELECT * FROM test_table"
         mock_cursor = mock_sqlite3_connect['cursor']
         mock_enter.return_value = mock_cursor
