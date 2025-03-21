@@ -26,6 +26,15 @@ MOCK_CONFIG = {
     }
 }
 
+@pytest.fixture
+def temp_index_path():
+    """Fixture to create a temporary path for the FAISS index."""
+    with tempfile.NamedTemporaryFile(suffix='.idx', delete=False) as tmp:
+        yield tmp.name
+        # Cleanup
+        if os.path.exists(tmp.name):
+            os.remove(tmp.name)
+
 # Create a temporary config file at the expected location
 def pytest_configure(config):
     """Create a temporary config file before any tests run."""
