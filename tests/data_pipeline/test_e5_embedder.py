@@ -2,12 +2,27 @@ import pytest
 import torch
 import numpy as np
 from transformers import PreTrainedTokenizerFast
+from unittest.mock import MagicMock
 
 from data_pipeline.generate_embeddings import E5Embedder  # Adjust import path based on your project structure
 
 @pytest.fixture
-def embedder():
-    """Fixture to initialize E5Embedder once for all tests."""
+def embedder(mocker):
+    """Fixture to initialize E5Embedder with mocks for CI testing."""
+    # Mock the tokenizer
+    mock_tokenizer = MagicMock(spec=PreTrainedTokenizerFast)
+    mock_tokenizer.return_value = mock_tokenizer
+    mocker.patch("transformers.AutoTokenizer.from_pretrained", return_value=mock_tokenizer)
+    
+    # Mock the model
+    mock_model = MagicMock()
+    mock_model.eval.return_value = mock_model
+    class MockOutput:
+        def __init__(self):
+            self.last_hidden_state = torch.randn(1, 512, 384)
+    mock_model.return_value = MockOutput()
+    mocker.patch("transformers.AutoModel.from_pretrained", return_value=mock_model)
+    
     return E5Embedder(model_name="intfloat/multilingual-e5-small", device="cpu")
 
 def test_model_initialization(embedder):
