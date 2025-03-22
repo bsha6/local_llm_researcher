@@ -63,7 +63,26 @@ brew install ghostscript  # Required for PDF processing
      "terminal.integrated.env.osx": { "PYTHONPATH": "${workspaceFolder}" }
      ```
 
-2. Run scripts from the root folder:
+2. This project requires a configuration file (config.yaml) to run properly.
+
+Structure:
+```
+database:
+  arxiv_db_path:
+  faiss_index_path:
+arxiv:
+  query:
+storage:
+  root_path:
+  save_path:
+models:
+  e5_small:
+    dimensions: 384
+```
+
+When running tests, the system will attempt to load the real configuration file. If no real config file is found, a mock config will be used automatically.
+
+3. Run scripts from the root folder:
 ```bash
 python -m folder.file_name
 ```
