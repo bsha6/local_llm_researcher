@@ -1,9 +1,6 @@
-import os
-import pytest
 import logging
 from pathlib import Path
 from unittest.mock import patch, mock_open, PropertyMock
-import tempfile
 
 from utils.file_operations import load_config
 
