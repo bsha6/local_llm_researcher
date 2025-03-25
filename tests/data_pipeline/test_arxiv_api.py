@@ -10,6 +10,17 @@ from data_pipeline.arxiv_api import ArxivPaperFetcher
 
 @pytest.mark.usefixtures("mock_config_globally")
 class TestArxivAPI(unittest.TestCase):
+    def setUp(self):
+        """Set up test fixtures before each test method."""
+        self.mock_db_patcher = patch('data_pipeline.arxiv_api.DatabaseManager')
+        self.mock_db = self.mock_db_patcher.start()
+        self.mock_cursor = MagicMock()
+        self.mock_db.return_value.__enter__.return_value = self.mock_cursor
+        self.mock_db.return_value.__exit__.return_value = None
+        
+    def tearDown(self):
+        """Clean up test fixtures after each test method."""
+        self.mock_db_patcher.stop()
     
     @patch('data_pipeline.arxiv_api.arxiv.Client')
     @patch('data_pipeline.arxiv_api.arxiv.Search')
@@ -60,6 +71,9 @@ class TestArxivAPI(unittest.TestCase):
         assert paper['journal'] == 'Journal of AI Research'
         assert paper['source'] == 'arxiv'
         
+        # Verify database operations
+        self.mock_cursor.execute.assert_called()
+        
         # Verify the search was created with correct parameters
         mock_search.assert_called_once_with(
             query=fetcher.query,
@@ -84,8 +98,13 @@ class TestArxivAPI(unittest.TestCase):
         
         # Assertions
         assert papers == []
+        
+        # Verify query was recorded in history but no paper data was inserted
+        self.mock_cursor.execute.assert_called_once_with(
+            '\n                INSERT INTO query_history (query_text, max_results, results_returned, category)\n                VALUES (?, ?, ?, ?)\n            ',
+            ('test query', 5, 0, None)
+        )
     
-
     @patch('data_pipeline.arxiv_api.arxiv.Client')
     @patch('data_pipeline.arxiv_api.arxiv.Search')
     def test_fetch_arxiv_paper_data_sort_by_date(self, mock_search, mock_client):

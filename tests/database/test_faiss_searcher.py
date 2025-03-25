@@ -28,16 +28,24 @@ class TestFaissSearcher:
         
         return mock_conn, mock_cursor
     
-    def test_init(self, faiss_index):
+    def test_init(self, faiss_index, mocker):
         """Test initialization of FaissSearcher."""
-        searcher = FaissSearcher(faiss_index, db=":memory:")
+        # Mock the config
+        mock_config = {"database": {"arxiv_db_path": ":memory:"}}
+        mocker.patch('database.faiss_search.FaissSearcher.get_config', return_value=mock_config)
+        
+        searcher = FaissSearcher(faiss_index)
         
         assert searcher.faiss_index == faiss_index
         assert searcher.db == ":memory:"
     
-    def test_search(self, faiss_index, mock_sqlite_connection):
+    def test_search(self, faiss_index, mock_sqlite_connection, mocker):
         """Test the search method."""
-        searcher = FaissSearcher(faiss_index, db=":memory:")
+        # Mock the config
+        mock_config = {"database": {"arxiv_db_path": ":memory:"}}
+        mocker.patch('database.faiss_search.FaissSearcher.get_config', return_value=mock_config)
+        
+        searcher = FaissSearcher(faiss_index)
         
         # Create a mock query embedding
         query_embedding = np.random.rand(1, 384).astype(np.float32)
@@ -57,11 +65,14 @@ class TestFaissSearcher:
         assert results[1] == "This is chunk 2"
         assert results[2] == "This is chunk 3"
     
-    def test_fetch_metadata(self, faiss_index, mock_sqlite_connection):
+    def test_fetch_metadata(self, faiss_index, mock_sqlite_connection, mocker):
         """Test the _fetch_metadata method."""
-        mock_conn, mock_cursor = mock_sqlite_connection
+        # Mock the config
+        mock_config = {"database": {"arxiv_db_path": ":memory:"}}
+        mocker.patch('database.faiss_search.FaissSearcher.get_config', return_value=mock_config)
         
-        searcher = FaissSearcher(faiss_index, db=":memory:")
+        mock_conn, mock_cursor = mock_sqlite_connection
+        searcher = FaissSearcher(faiss_index)
         
         # Call the _fetch_metadata method with some indices
         results = searcher._fetch_metadata([0, 1, 2, 3])
@@ -81,9 +92,13 @@ class TestFaissSearcher:
         assert results[1] == "This is chunk 2"
         assert results[2] == "This is chunk 3"
     
-    def test_search_dimension_mismatch(self, faiss_index):
+    def test_search_dimension_mismatch(self, faiss_index, mocker):
         """Test that search raises an assertion error when dimensions don't match."""
-        searcher = FaissSearcher(faiss_index, db=":memory:")
+        # Mock the config
+        mock_config = {"database": {"arxiv_db_path": ":memory:"}}
+        mocker.patch('database.faiss_search.FaissSearcher.get_config', return_value=mock_config)
+        
+        searcher = FaissSearcher(faiss_index)
         
         # Create a query embedding with wrong dimensions
         query_embedding = np.random.rand(1, 128).astype(np.float32)  # Wrong dimension (should be 384)
@@ -92,12 +107,16 @@ class TestFaissSearcher:
         with pytest.raises(AssertionError, match="Query embedding dimension mismatch!"):
             searcher.search(query_embedding)
     
-    def test_empty_results(self, faiss_index):
+    def test_empty_results(self, faiss_index, mocker):
         """Test behavior when no results are found."""
+        # Mock the config
+        mock_config = {"database": {"arxiv_db_path": ":memory:"}}
+        mocker.patch('database.faiss_search.FaissSearcher.get_config', return_value=mock_config)
+        
         # Mock the search method to return empty results
         faiss_index.index.search.return_value = (np.array([[]]), np.array([[]]))
         
-        searcher = FaissSearcher(faiss_index, db=":memory:")
+        searcher = FaissSearcher(faiss_index)
         
         # Create a mock query embedding
         query_embedding = np.random.rand(1, 384).astype(np.float32)

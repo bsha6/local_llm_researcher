@@ -4,7 +4,13 @@ import numpy as np
 import tempfile
 import json
 import os
+import logging
+import faiss
+
 from utils.file_operations import ConfigLoader
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 # Define a consistent mock config structure
 MOCK_CONFIG = {
@@ -25,6 +31,7 @@ MOCK_CONFIG = {
         }
     }
 }
+
 
 @pytest.fixture
 def temp_index_path():
@@ -58,13 +65,20 @@ def pytest_unconfigure(config):
 
 @pytest.fixture(autouse=True)
 def mock_config_globally():
-    """Fixture to mock config loading globally before any imports."""
-    # Reset the singleton and set up our mock config
+    """Fixture to provide mock config only when no real config exists."""
+    # Reset the singleton
     ConfigLoader.reset()
-    loader = ConfigLoader.get_instance()
-    loader._config = MOCK_CONFIG.copy()
     
-    yield MOCK_CONFIG.copy()
+    # Try to load the real config first
+    try:
+        config = ConfigLoader.get_instance().load_config()
+        logger.info("Loaded real config")
+        yield config
+    except FileNotFoundError:
+        # Only use mock config if no real config exists
+        ConfigLoader._config = MOCK_CONFIG.copy()
+        logger.info("Real config not found. Loaded mock config")
+        yield MOCK_CONFIG.copy()
     
     # Clean up after the test
     ConfigLoader.reset()
@@ -86,12 +100,12 @@ def mock_config():
 @pytest.fixture
 def temp_config_file(tmp_path):
     """Fixture to create a temporary config file."""
-    temp_file = tmp_path / "test_config.yaml"  # Ensure this is a Path object
+    temp_file = tmp_path / "test_config.yaml"
     
     with open(temp_file, "w") as f:
         json.dump(MOCK_CONFIG, f)
     
-    return temp_file  # Return a Path object, not a string
+    return temp_file
 
 @pytest.fixture
 def temp_directory():
@@ -131,24 +145,45 @@ def mock_os_path_exists():
 @pytest.fixture
 def mock_faiss_index(mocker):
     """Fixture to mock FAISS index and avoid file I/O."""
-    mock_index = MagicMock()
+    # Create a base class to mimic faiss.IndexFlatL2
+    class MockIndexFlatL2:
+        def __init__(self, dim):
+            self.dim = dim
+            self.ntotal = 0
+        
+    # Create our mock index class
+    class MockIndex(MagicMock):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.ntotal = 0
+            
+    # Create the mock with proper spec
+    mock_index = MockIndex(spec=['add', 'search', 'ntotal'])
+    
+    # Set up the methods with simple return values
     mock_index.add = MagicMock()
-    mock_index.search = MagicMock(return_value=(np.array([[0, 1, 2]]), np.array([[0.1, 0.2, 0.3]])))
-    mock_index.ntotal = 0  # Mock number of stored vectors
-
-    # Mock FAISS index types
+    mock_index.search = MagicMock(return_value=(np.array([[0.1, 0.2, 0.3]]), np.array([[1, 2, 3]])))
+    
+    # Mock the faiss module and its types
+    mock_flat_l2 = MagicMock(side_effect=MockIndexFlatL2)
+    mocker.patch('faiss.IndexFlatL2', mock_flat_l2)
+    mocker.patch.object(mock_index, '__class__', MockIndexFlatL2)
+    
+    # Mock FAISS index types with the same mock instance
     mocker.patch("faiss.IndexHNSWFlat", return_value=mock_index)
-    mocker.patch("faiss.IndexFlatL2", return_value=mock_index)
     mocker.patch("faiss.read_index", return_value=mock_index)
-    mocker.patch("faiss.write_index")  # Prevents actual file writing
-
+    mocker.patch("faiss.write_index")
+    
     return mock_index
 
 @pytest.fixture
 def mock_db_manager(mocker):
     """Fixture to mock DatabaseManager for FAISS index tests."""
-    mock_manager = MagicMock()
-    mock_cursor = MagicMock()
+    # Create a simple mock manager without complex method tracking
+    mock_manager = MagicMock(spec=['__enter__'])
+    mock_cursor = MagicMock(spec=['executemany', 'execute', 'fetchall'])
+    
+    # Set up the methods with simple return values
     mock_manager.__enter__.return_value = mock_cursor
     mock_cursor.executemany = MagicMock()
     mock_cursor.execute = MagicMock()
@@ -214,29 +249,25 @@ def mock_pdf_pipeline_dependencies(mocker, mock_database, mock_faiss):
     """Mock all external dependencies for PDFPipeline."""
     mock_db, mock_cursor = mock_database
     
-    # Mock ArxivPaperFetcher
+    # Create simple mocks without complex tracking
     mock_fetcher = MagicMock()
-    mock_fetcher.download_arxiv_pdf = MagicMock()
+    mock_fetcher.download_arxiv_pdf.return_value = "downloaded/path.pdf"
     mocker.patch('main.ArxivPaperFetcher', return_value=mock_fetcher)
     
-    # Mock PDFExtractor
     mock_extractor = MagicMock()
-    mock_extractor.process_pdf = MagicMock(return_value={"text_data": {"1": "Sample text"}})
+    mock_extractor.process_pdf.return_value = {"text_data": {"1": "Sample text"}}
     mocker.patch('main.PDFExtractor', return_value=mock_extractor)
     
-    # Mock TextPreprocessor
     mock_preprocessor = MagicMock()
-    mock_preprocessor.clean_text = MagicMock(return_value="Cleaned sample text")
+    mock_preprocessor.clean_text.return_value = "Cleaned sample text"
     mocker.patch('main.TextPreprocessor', return_value=mock_preprocessor)
     
-    # Mock TextChunker
     mock_chunker = MagicMock()
-    mock_chunker.chunk_text = MagicMock(return_value=["Chunk 1", "Chunk 2"])
+    mock_chunker.chunk_text.return_value = ["Chunk 1", "Chunk 2"]
     mocker.patch('main.TextChunker', return_value=mock_chunker)
     
-    # Mock E5Embedder
     mock_embedder = MagicMock()
-    mock_embedder.generate_embeddings = MagicMock(return_value=[[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]])
+    mock_embedder.generate_embeddings.return_value = [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]
     mocker.patch('main.E5Embedder', return_value=mock_embedder)
     
     # Mock FaissIndex and DatabaseManager
@@ -249,7 +280,6 @@ def mock_pdf_pipeline_dependencies(mocker, mock_database, mock_faiss):
         'preprocessor': mock_preprocessor,
         'chunker': mock_chunker,
         'embedder': mock_embedder,
-        'faiss': mock_faiss,
-        'db': mock_db,
-        'cursor': mock_cursor
+        'cursor': mock_cursor,
+        'faiss': mock_faiss
     }

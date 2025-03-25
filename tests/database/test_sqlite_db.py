@@ -1,10 +1,24 @@
 import pytest
 from unittest.mock import patch, MagicMock
+import sqlite3
 
 from database.sqlite_db import DatabaseManager
 
 @pytest.mark.usefixtures("mock_config_globally")
 class TestDatabaseManager:
+    
+    @pytest.fixture(autouse=True)
+    def setup_db(self):
+        """Setup and cleanup for each test."""
+        self.db_path = ":memory:"
+        self.db = DatabaseManager(self.db_path)
+        yield
+        # Cleanup
+        if hasattr(self, 'db'):
+            try:
+                self.db._conn.close()
+            except (sqlite3.Error, AttributeError):
+                pass
     
     @pytest.fixture
     def mock_sqlite3_connect(self):
@@ -26,10 +40,29 @@ class TestDatabaseManager:
                 'cursor': mock_cursor
             }
     
+    def test_init_db(self, mock_sqlite3_connect):
+        """Test database initialization."""
+        mock_cursor = mock_sqlite3_connect['cursor']
+        
+        # Initialize database
+        self.db.init_db()
+        
+        # Verify that all required tables were created
+        expected_tables = [
+            'papers',
+            'query_history',
+            'paper_chunks'
+        ]
+        
+        # Check that CREATE TABLE was called for each table
+        assert mock_cursor.execute.call_count >= len(expected_tables)
+        
+        # Verify commit was called
+        mock_sqlite3_connect['conn'].commit.assert_called()
+    
     def test_fetch_metadata_with_params(self, mock_sqlite3_connect):
         """Test _fetch_metadata with query parameters."""
         # Setup
-        test_db_path = ":memory:"
         test_query = "SELECT * FROM test_table WHERE id = ?"
         test_params = (1,)
         expected_result = [(1, "test_data")]
@@ -39,7 +72,7 @@ class TestDatabaseManager:
         mock_cursor.fetchall.return_value = expected_result
         
         # Execute
-        result = DatabaseManager._fetch_metadata(test_db_path, test_query, test_params)
+        result = DatabaseManager._fetch_metadata(self.db_path, test_query, test_params)
         
         # Assert
         assert result == expected_result
@@ -50,7 +83,6 @@ class TestDatabaseManager:
     def test_fetch_metadata_without_params(self, mock_sqlite3_connect):
         """Test _fetch_metadata without query parameters."""
         # Setup
-        test_db_path = ":memory:"
         test_query = "SELECT * FROM test_table"
         expected_result = [(1, "test_data"), (2, "more_data")]
         
@@ -59,7 +91,7 @@ class TestDatabaseManager:
         mock_cursor.fetchall.return_value = expected_result
         
         # Execute
-        result = DatabaseManager._fetch_metadata(test_db_path, test_query)
+        result = DatabaseManager._fetch_metadata(self.db_path, test_query)
         
         # Assert
         assert result == expected_result
@@ -70,7 +102,6 @@ class TestDatabaseManager:
     def test_fetch_metadata_empty_result(self, mock_sqlite3_connect):
         """Test _fetch_metadata when no results are returned."""
         # Setup
-        test_db_path = ":memory:"
         test_query = "SELECT * FROM empty_table"
         expected_result = []
         
@@ -79,26 +110,20 @@ class TestDatabaseManager:
         mock_cursor.fetchall.return_value = expected_result
         
         # Execute
-        result = DatabaseManager._fetch_metadata(test_db_path, test_query)
+        result = DatabaseManager._fetch_metadata(self.db_path, test_query)
         
         # Assert
         assert result == expected_result
         assert len(result) == 0
         mock_cursor.execute.assert_called_once_with(test_query, ())
     
-    @patch.object(DatabaseManager, '__enter__')
-    @patch.object(DatabaseManager, '__exit__')
-    def test_fetch_metadata_context_manager_usage(self, mock_exit, mock_enter, mock_sqlite3_connect):
-        """Test that _fetch_metadata correctly uses the DatabaseManager context manager."""
-        # Setup
-        test_db_path = ":memory:"
-        test_query = "SELECT * FROM test_table"
+    def test_context_manager(self, mock_sqlite3_connect):
+        """Test the context manager functionality."""
         mock_cursor = mock_sqlite3_connect['cursor']
-        mock_enter.return_value = mock_cursor
         
-        # Execute
-        DatabaseManager._fetch_metadata(test_db_path, test_query)
-        
-        # Assert
-        mock_enter.assert_called_once()
-        mock_exit.assert_called_once()
+        with DatabaseManager(self.db_path) as cursor:
+            cursor.execute("SELECT 1")
+            
+        # Verify connection was properly managed
+        mock_sqlite3_connect['conn'].commit.assert_called_once()
+        mock_sqlite3_connect['conn'].close.assert_called_once()
