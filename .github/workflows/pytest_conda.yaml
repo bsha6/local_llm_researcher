@@ -21,6 +21,9 @@ jobs:
           environment-file: .github/workflows/ci-environment.yaml
           auto-activate-base: false
 
+      - name: Install Package in Editable Mode
+        run: pip install -e .
+        
       - name: Run Pytest
         shell: bash -l {0}
         run: |
