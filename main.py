@@ -1,6 +1,7 @@
 import logging
 from typing import List, Dict
 import os
+from pathlib import Path
 
 from data_pipeline.arxiv_api import ArxivPaperFetcher
 from data_pipeline.extract.pdf_extractor import PDFExtractor
@@ -11,13 +12,15 @@ from database.faiss_index import FaissIndex
 from database.sqlite_db import DatabaseManager
 from utils.file_operations import load_config
 
+PROJECT_ROOT = Path(__file__).resolve().parent
+
 # class for paper pdf -> embedding -> store
 class PDFPipeline:
     def __init__(self, batch_size=5):
         self.config = load_config()
         self.batch_size = batch_size
         self.db_path = self.config["database"]["arxiv_db_path"]
-        self.root_path = self.config["storage"]["root_path"]
+        self.root_path = PROJECT_ROOT
         self.paper_path = self.config["storage"]["save_path"]
         self.paper_abs_path = os.path.join(self.root_path, self.paper_path)
         self.faiss_index = FaissIndex()
