@@ -152,6 +152,7 @@ class FaissSearcher:
         retrieved_chunks = []
 
         for idx in indices:
+            # Convert from 0-indexed FAISS indices to 1-indexed SQLite indices
             cursor.execute("SELECT chunk_text FROM paper_chunks WHERE faiss_idx=?", (idx+1,))
             result = cursor.fetchone()
             if result:
