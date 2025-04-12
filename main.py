@@ -1,6 +1,5 @@
 import logging
 from typing import List, Dict
-import os
 from pathlib import Path
 
 from data_pipeline.arxiv_api import ArxivPaperFetcher
@@ -16,20 +15,19 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 
 # class for paper pdf -> embedding -> store
 class PDFPipeline:
-    def __init__(self, batch_size=5):
+    def __init__(self, batch_size=5, root_path=None):
         self.config = load_config()
         self.batch_size = batch_size
         self.db_path = self.config["database"]["arxiv_db_path"]
-        self.root_path = PROJECT_ROOT
+        self.root_path = Path(root_path) if root_path else PROJECT_ROOT
         self.paper_path = self.config["storage"]["save_path"]
-        self.paper_abs_path = os.path.join(self.root_path, self.paper_path)
+        self.paper_abs_path = self.root_path / self.paper_path
         self.faiss_index = FaissIndex()
         self.embedder = E5Embedder()
         self.arxiv_fetcher = ArxivPaperFetcher()
         
         # Ensure save path exists
-        os.makedirs(self.root_path, exist_ok=True)
-        os.makedirs(self.paper_abs_path, exist_ok=True)
+        self.paper_abs_path.mkdir(parents=True, exist_ok=True)
     
     def _get_unprocessed_papers(self) -> List[Dict]:
         """Get papers that haven't had their text extracted yet or have missing PDFs."""
@@ -96,7 +94,7 @@ class PDFPipeline:
             pdf_path = self._ensure_pdf_exists(paper)
             
             # Convert relative path to absolute path
-            absolute_pdf_path = os.path.join(self.paper_abs_path, pdf_path)
+            absolute_pdf_path = self.paper_abs_path / pdf_path
             logging.info(f"Processing PDF at absolute path: {absolute_pdf_path}")
             
             # Extract text from PDF
