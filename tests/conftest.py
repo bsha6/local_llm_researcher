@@ -25,7 +25,8 @@ MOCK_CONFIG = {
     },
     "models": {
         "e5_small": {
-            "dimensions": 384
+            "dimensions": 384,
+            "max_tokens": 450
         }
     }
 }

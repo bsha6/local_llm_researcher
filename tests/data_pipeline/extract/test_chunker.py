@@ -1,9 +1,12 @@
+import pytest
+
 from data_pipeline.extract.chunker import TextChunker
 
 
+@pytest.mark.usefixtures("setup_config_loader")
 class TestTextChunker:
     """Test suite for the TextChunker class."""
-    def test_init(self, mock_tokenizer):
+    def test_init(self, mock_tokenizer, setup_config_loader):
         """Test the initialization of TextChunker."""
         chunker = TextChunker("Sample text")
         
@@ -11,7 +14,7 @@ class TestTextChunker:
         mock_tokenizer.assert_called_once_with("intfloat/multilingual-e5-small")
         
         # Verify default parameters
-        assert chunker.max_tokens == 512
+        assert chunker.max_tokens == setup_config_loader['models']['e5_small']['max_tokens']
         assert chunker.overlap == 50
         assert chunker.text == "Sample text"
 

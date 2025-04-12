@@ -3,8 +3,12 @@ from itertools import accumulate
 from transformers import AutoTokenizer
 import logging
 
+from utils.file_operations import load_config
+
+E5_SMALL_MAX_TOKENS = load_config()["models"]["e5_small"]["max_tokens"]
+
 class TextChunker:
-    def __init__(self, text, model="intfloat/multilingual-e5-small", max_tokens=450, overlap=50):
+    def __init__(self, text, model="intfloat/multilingual-e5-small", max_tokens=E5_SMALL_MAX_TOKENS, overlap=50):
         """
         :param text: The cleaned text to be chunked.
         :param model: Tokenizer model name (Hugging Face).

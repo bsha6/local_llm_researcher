@@ -7,4 +7,5 @@ storage:
   save_path: "papers/"
 models:
   e5_small:
-    dimensions: 384 
+    dimensions: 384
+    max_tokens: 450
