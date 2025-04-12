@@ -151,10 +151,17 @@ class TestFaissSearcher:
 
         # Verify _fetch_metadata was NOT called (or called with empty list)
         # Since the mocked search returns empty indices, _fetch_metadata should receive []
-        # Let's mock _fetch_metadata to assert it gets called with an empty list
+        # Let's mock _fetch_metadata to assert it gets called with an empty integer array
         with patch.object(searcher, '_fetch_metadata') as mock_fetch:
-            results = searcher.search(query_embedding) # Call again with mock active
-            mock_fetch.assert_called_once_with([])
+            results = searcher.search(query_embedding)  # Call again with mock active
+            # Assert it's called with an empty array of the correct integer dtype
+            expected_indices = np.array([], dtype=np.int64)
+            # Use np.array_equal for robust comparison
+            mock_fetch.assert_called_once()
+            call_args, call_kwargs = mock_fetch.call_args
+            assert len(call_args) == 1
+            assert np.array_equal(call_args[0], expected_indices)
+            assert not call_kwargs # Ensure no keyword arguments were passed
 
         # Verify the final results are empty
         assert len(results) == 0
