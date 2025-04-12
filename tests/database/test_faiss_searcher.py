@@ -28,62 +28,93 @@ class TestFaissSearcher:
         
         return mock_conn, mock_cursor
     
-    def test_init(self, faiss_index):
+    def test_init(self, faiss_index, mocker):
         """Test initialization of FaissSearcher."""
-        searcher = FaissSearcher(faiss_index, db=":memory:")
+        # Mock the config
+        mock_config = {"database": {"arxiv_db_path": ":memory:"}}
+        mocker.patch('database.faiss_search.FaissSearcher.get_config', return_value=mock_config)
+        
+        searcher = FaissSearcher(faiss_index)
         
         assert searcher.faiss_index == faiss_index
         assert searcher.db == ":memory:"
     
-    def test_search(self, faiss_index, mock_sqlite_connection):
+    def test_search(self, faiss_index, mock_sqlite_connection, mocker):
         """Test the search method."""
-        searcher = FaissSearcher(faiss_index, db=":memory:")
+        # Mock the config
+        mock_config = {"database": {"arxiv_db_path": ":memory:"}}
+        mocker.patch('database.faiss_search.FaissSearcher.get_config', return_value=mock_config)
+        
+        # --- Mock the underlying FAISS index search method --- 
+        mock_distances = np.array([[0.1, 0.2, 0.3]], dtype=np.float32)
+        mock_faiss_indices = np.array([[10, 20, 30]], dtype=np.int64) # Use distinct faiss indices
+        mocker.patch.object(
+            faiss_index.index,
+            'search',
+            return_value=(mock_distances, mock_faiss_indices)
+        )
+        # -----------------------------------------------------
+        
+        searcher = FaissSearcher(faiss_index)
         
         # Create a mock query embedding
-        query_embedding = np.random.rand(1, 384).astype(np.float32)
+        query_embedding = np.random.rand(1, faiss_index.dim).astype(np.float32) # Use faiss_index.dim
         
         # Call the search method
         results = searcher.search(query_embedding, top_k=3)
         
         # Verify the search was performed with the right parameters
-        faiss_index.index.search.assert_called_once()
-        args, kwargs = faiss_index.index.search.call_args
-        assert np.array_equal(args[0], query_embedding)
-        assert args[1] == 3
+        faiss_index.index.search.assert_called_once_with(query_embedding, 3)
         
-        # Verify the results
-        assert len(results) == 3
-        assert results[0] == "This is chunk 1"
-        assert results[1] == "This is chunk 2"
-        assert results[2] == "This is chunk 3"
-    
-    def test_fetch_metadata(self, faiss_index, mock_sqlite_connection):
-        """Test the _fetch_metadata method."""
+        # Verify the DB was queried correctly by _fetch_metadata
         mock_conn, mock_cursor = mock_sqlite_connection
+        # The search method calls _fetch_metadata with the faiss_indices from the mocked search return
+        expected_faiss_indices = mock_faiss_indices.flatten().tolist()
+        assert mock_cursor.execute.call_count == len(expected_faiss_indices)
+        # Check the first call as an example (assuming fetchone returns the mocked chunks)
+        sql_query, params = mock_cursor.execute.call_args_list[0][0]
+        assert sql_query == "SELECT chunk_text FROM paper_chunks WHERE faiss_idx=?"
+        # Convert from 0-indexed FAISS indices to 1-indexed SQLite indices
+        assert params == (10+1,) # chunk_id corresponding to faiss_idx 10 (from mock_sqlite_connection)
         
-        searcher = FaissSearcher(faiss_index, db=":memory:")
+        # Verify the results (using the mocked fetchone results)
+        assert len(results) == 3
+        assert results[0] == "This is chunk 1" # Corresponds to fetchone call for faiss_idx 10
+        assert results[1] == "This is chunk 2" # Corresponds to fetchone call for faiss_idx 20
+        assert results[2] == "This is chunk 3" # Corresponds to fetchone call for faiss_idx 30
+    
+    def test_fetch_metadata(self, faiss_index, mock_sqlite_connection, mocker):
+        """Test the _fetch_metadata method."""
+        # Mock the config
+        mock_config = {"database": {"arxiv_db_path": ":memory:"}}
+        mocker.patch('database.faiss_search.FaissSearcher.get_config', return_value=mock_config)
         
-        # Call the _fetch_metadata method with some indices
-        results = searcher._fetch_metadata([0, 1, 2, 3])
+        mock_conn, mock_cursor = mock_sqlite_connection
+        searcher = FaissSearcher(faiss_index)
+        
+        # Call the _fetch_metadata method with some faiss indices
+        faiss_ids_to_fetch = [1, 2, 3, 4] 
+        results = searcher._fetch_metadata(faiss_ids_to_fetch)
         
         # Verify the database was queried correctly
-        assert mock_cursor.execute.call_count == 4
+        assert mock_cursor.execute.call_count == len(faiss_ids_to_fetch)
         
         # Check the SQL queries
-        for i in range(4):
+        for i, faiss_idx in enumerate(faiss_ids_to_fetch):
             args, kwargs = mock_cursor.execute.call_args_list[i]
             assert args[0] == "SELECT chunk_text FROM paper_chunks WHERE faiss_idx=?"
-            assert args[1] == (i+1,)
+            assert args[1] == (faiss_idx+1,) # Convert from 0-indexed FAISS indices to 1-indexed SQLite indices
         
         # Verify the results
         assert len(results) == 3  # Only 3 results because the 4th fetchone returns None
-        assert results[0] == "This is chunk 1"
-        assert results[1] == "This is chunk 2"
-        assert results[2] == "This is chunk 3"
     
-    def test_search_dimension_mismatch(self, faiss_index):
+    def test_search_dimension_mismatch(self, faiss_index, mocker):
         """Test that search raises an assertion error when dimensions don't match."""
-        searcher = FaissSearcher(faiss_index, db=":memory:")
+        # Mock the config
+        mock_config = {"database": {"arxiv_db_path": ":memory:"}}
+        mocker.patch('database.faiss_search.FaissSearcher.get_config', return_value=mock_config)
+        
+        searcher = FaissSearcher(faiss_index)
         
         # Create a query embedding with wrong dimensions
         query_embedding = np.random.rand(1, 128).astype(np.float32)  # Wrong dimension (should be 384)
@@ -92,19 +123,45 @@ class TestFaissSearcher:
         with pytest.raises(AssertionError, match="Query embedding dimension mismatch!"):
             searcher.search(query_embedding)
     
-    def test_empty_results(self, faiss_index):
+    def test_empty_results(self, faiss_index, mocker):
         """Test behavior when no results are found."""
-        # Mock the search method to return empty results
-        faiss_index.index.search.return_value = (np.array([[]]), np.array([[]]))
+        # Mock the config
+        mock_config = {"database": {"arxiv_db_path": ":memory:"}}
+        mocker.patch('database.faiss_search.FaissSearcher.get_config', return_value=mock_config)
         
-        searcher = FaissSearcher(faiss_index, db=":memory:")
+        # --- Mock the underlying FAISS index search method to return empty --- 
+        mocker.patch.object(
+            faiss_index.index,
+            'search',
+            # Use correct dtype for indices (int64)
+            return_value=(np.array([[]], dtype=np.float32), np.array([[]], dtype=np.int64))
+        )
+        # -------------------------------------------------------------------
+        
+        searcher = FaissSearcher(faiss_index)
         
         # Create a mock query embedding
-        query_embedding = np.random.rand(1, 384).astype(np.float32)
+        query_embedding = np.random.rand(1, faiss_index.dim).astype(np.float32)
         
-        # Mock _fetch_metadata to return empty list
-        with patch.object(searcher, '_fetch_metadata', return_value=[]):
-            results = searcher.search(query_embedding)
-            
-            # Verify the results are empty
-            assert len(results) == 0
+        # Call search
+        results = searcher.search(query_embedding)
+
+        # Verify faiss search was called
+        faiss_index.index.search.assert_called_once()
+
+        # Verify _fetch_metadata was NOT called (or called with empty list)
+        # Since the mocked search returns empty indices, _fetch_metadata should receive []
+        # Let's mock _fetch_metadata to assert it gets called with an empty integer array
+        with patch.object(searcher, '_fetch_metadata') as mock_fetch:
+            results = searcher.search(query_embedding)  # Call again with mock active
+            # Assert it's called with an empty array of the correct integer dtype
+            expected_indices = np.array([], dtype=np.int64)
+            # Use np.array_equal for robust comparison
+            mock_fetch.assert_called_once()
+            call_args, call_kwargs = mock_fetch.call_args
+            assert len(call_args) == 1
+            assert np.array_equal(call_args[0], expected_indices)
+            assert not call_kwargs # Ensure no keyword arguments were passed
+
+        # Verify the final results are empty
+        assert len(results) == 0

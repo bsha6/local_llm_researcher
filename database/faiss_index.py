@@ -1,17 +1,21 @@
 import faiss
 import numpy as np
 import os
-
+from typing import List, Tuple, Optional
+from pathlib import Path
 from utils.file_operations import load_config
 from database.sqlite_db import DatabaseManager
 
-# Load configuration
-config = load_config()
-ARXIV_DB_PATH = config["database"]["arxiv_db_path"]
-DIM = config["models"]["e5_small"]["dimensions"]
-
 class FaissIndex:
-    def __init__(self, index_path="faiss_index.idx", db_path=ARXIV_DB_PATH, dim=DIM, 
+    _config = None
+
+    @classmethod
+    def get_config(cls):
+        if cls._config is None:
+            cls._config = load_config()
+        return cls._config
+
+    def __init__(self, index_path: Optional[str] = None, db_path=None, dim=None, 
                  M=16, efConstruction=40, efSearch=16, flat_batch_size=200, hnsw_batch_size=10):
         """
         Initialize FAISS index with support for both FlatL2 and HNSW indices.
@@ -25,9 +29,10 @@ class FaissIndex:
         :param flat_batch_size: Batch size for FlatL2 operations (can be larger for faster processing).
         :param hnsw_batch_size: Batch size for HNSW operations (should be smaller for stability).
         """
-        self.index_path = index_path
-        self.db_path = db_path
-        self.dim = dim
+        config = self.get_config()
+        self.index_path = index_path or config["database"].get("faiss_index_path", "faiss_index.idx")
+        self.db_path = db_path or config["database"]["arxiv_db_path"]
+        self.dim = dim or config["models"]["e5_small"]["dimensions"]
         self.M = M
         self.efConstruction = efConstruction
         self.efSearch = efSearch

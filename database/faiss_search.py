@@ -4,25 +4,31 @@ import argparse
 import os
 import gc
 import torch
+from typing import Optional
 
 from database.faiss_index import FaissIndex
 from data_pipeline.generate_embeddings import E5Embedder
 from utils.file_operations import load_config
 from database.sqlite_db import DatabaseManager
 
-config = load_config()
-DB_NAME = config["database"]["arxiv_db_path"]
-
 class FaissSearcher:
-    def __init__(self, faiss_index: FaissIndex, db=DB_NAME):
+    _config = None
+
+    @classmethod
+    def get_config(cls):
+        if cls._config is None:
+            cls._config = load_config()
+        return cls._config
+
+    def __init__(self, faiss_index: Optional[FaissIndex] = None):
         """
         Initialize the FAISS searcher.
 
         :param faiss_index: An instance of the FaissIndex class.
-        :param db: Path to SQLite database storing metadata.
         """
-        self.faiss_index = faiss_index
-        self.db = db
+        self.config = self.get_config()
+        self.faiss_index = faiss_index or FaissIndex()
+        self.db = self.config["database"]["arxiv_db_path"]
 
     def rebuild_index(self, embedding_function):
         """
@@ -146,6 +152,7 @@ class FaissSearcher:
         retrieved_chunks = []
 
         for idx in indices:
+            # Convert from 0-indexed FAISS indices to 1-indexed SQLite indices
             cursor.execute("SELECT chunk_text FROM paper_chunks WHERE faiss_idx=?", (idx+1,))
             result = cursor.fetchone()
             if result:

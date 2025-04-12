@@ -1,0 +1,10 @@
+database:
+  arxiv_db_path: "database/arxiv_papers.db"
+  faiss_index_path: "faiss_index.idx"
+arxiv:
+  query: "Reinforcement Learning"
+storage:
+  save_path: "papers/"
+models:
+  e5_small:
+    dimensions: 384 

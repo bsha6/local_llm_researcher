@@ -1,0 +1,47 @@
+name: test-env
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pytest>=7.0
+  - pytest-cov>=4.0
+  - imagehash=4.3.2
+  - numpy>=1.24
+  - pandas>=2.0
+  - faiss-cpu>=1.7
+  - pytorch::pytorch>=2.0
+  - pytorch::torchvision
+  - transformers>=4.30
+  - spacy>=3.7
+  - spacy-legacy>=3.0.12
+  - spacy-loggers>=1.0.4
+  - arxiv>=2.0
+  - beautifulsoup4>=4.12
+  - huggingface_hub>=0.19
+  - pyyaml>=6.0
+  - requests>=2.31
+  - tqdm>=4.65
+  - tenacity>=8.0
+  - pydantic>=2.0
+  - python-dateutil>=2.8
+  - datasets>=3.3
+  - tokenizers>=0.21
+  - aiohttp>=3.11.10
+  - aiosignal>=1.2.0
+  - async-timeout>=5.0.1
+  - anyio>=4.6.2
+  - annotated-types>=0.6.0
+  - cloudpathlib>=0.16.0
+  - ipykernel>=6.29.5
+  - pip
+  - pip:
+    - pytest-mock>=3.10
+    - pymupdf>=1.25
+    - pdf2image>=1.17
+    - pytesseract>=0.3.13
+    - networkx>=3.4
+    - sympy>=1.13
+    - mpmath>=1.3

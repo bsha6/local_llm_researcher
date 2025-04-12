@@ -1,5 +1,7 @@
 # Research Paper Processing and Search System
 
+[![Tests](https://github.com/bsha6/local_llm_researcher/actions/workflows/pytest_conda.yaml/badge.svg)](https://github.com/bsha6/local_llm_researcher/actions/workflows/pytest_conda.yaml)
+
 A system for processing, indexing, and searching research papers using modern NLP techniques. This project enables efficient semantic search across research papers by leveraging FAISS for vector similarity search and the E5 model for generating high-quality embeddings.
 
 ## Features
