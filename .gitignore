@@ -1,6 +1,5 @@
 # Project specific
 .qodo
-config.yaml
 todo.md
 # *.png
 # *.pdf
