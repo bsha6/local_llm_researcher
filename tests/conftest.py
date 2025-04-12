@@ -160,10 +160,20 @@ def mock_db_manager(mocker):
     return mock_manager
 
 @pytest.fixture
-def faiss_index(mock_faiss_index, mock_db_manager):
-    """Fixture for an initialized FaissIndex instance."""
-    index = FaissIndex()
-    # Ensure _ensure_faiss_idx_column has been called
+def faiss_index(mocker, mock_faiss_index, temp_index_path, setup_config_loader):
+    """Fixture for an initialized FaissIndex instance forced to use the mock index."""
+    # Patch the initialization logic within FaissIndex to *always* return the mock
+    mocker.patch("database.faiss_index.FaissIndex._initialize_index", return_value=mock_faiss_index)
+
+    # Instantiate FaissIndex. It will now use the patched _initialize_index.
+    # Pass temp_index_path to __init__ as it's expected.
+    index = FaissIndex(index_path=temp_index_path)
+
+    # If _initialize_index normally sets other attributes like is_hnsw,
+    # we might need to set them manually here based on the mock.
+    # Let's assume mock_faiss_index isn't HNSW for now.
+    index.is_hnsw = False # Adjust if mock represents HNSW
+
     return index
 
 '''Chunking'''

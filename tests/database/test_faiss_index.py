@@ -38,6 +38,7 @@ class TestFaissIndex:
 
     def test_add_embeddings_correct_shape(self, faiss_index, mock_faiss_index, mocker, setup_config_loader):
         """Test adding embeddings with correct shape."""
+        assert faiss_index.index is mock_faiss_index, "faiss_index.index is not the mock_faiss_index"
         # Mock the DatabaseManager to prevent actual database operations
         mock_db_context = MagicMock()
         mock_cursor = MagicMock()
