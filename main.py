@@ -1,6 +1,7 @@
 import logging
-from typing import List, Dict
+from typing import List, Dict, Optional
 from pathlib import Path
+from tqdm import tqdm
 
 from data_pipeline.arxiv_api import ArxivPaperFetcher
 from data_pipeline.extract.pdf_extractor import PDFExtractor
