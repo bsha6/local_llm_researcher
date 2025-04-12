@@ -16,10 +16,14 @@ QUERY = config["arxiv"]["query"]
 class ArxivPaperFetcher:
     """Class for fetching, displaying, and storing ArXiv papers."""
 
-    def __init__(self, query=QUERY):
+    def __init__(self, query=None, config=None):
         """Initialize with configuration."""
-        self.query = query
-        self.config = load_config()
+        # Use provided config or load default
+        self.config = config if config is not None else load_config()
+        
+        # Use provided query or get from config
+        self.query = query if query is not None else self.config["arxiv"]["query"]
+        
         self.save_path = self.config["storage"]["save_path"]
         self.db_path = self.config["database"]["arxiv_db_path"]
         
