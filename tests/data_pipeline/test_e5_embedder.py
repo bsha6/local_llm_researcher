@@ -6,7 +6,6 @@ from unittest.mock import MagicMock
 
 from data_pipeline.generate_embeddings import E5Embedder
 
-@pytest.mark.usefixtures("mock_config_globally")
 class TestE5Embedder:
     @pytest.fixture
     def embedder(self, mocker):

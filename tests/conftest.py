@@ -5,7 +5,6 @@ import tempfile
 import json
 import os
 import logging
-import faiss
 
 from utils.file_operations import ConfigLoader
 
@@ -22,7 +21,6 @@ MOCK_CONFIG = {
         "query": "test query"
     },
     "storage": {
-        "root_path": "/test/root",
         "save_path": "test_papers/"
     },
     "models": {
@@ -43,45 +41,33 @@ def temp_index_path():
             os.remove(tmp.name)
 
 # Create a temporary config file at the expected location
-def pytest_configure(config):
-    """Create a temporary config file before any tests run."""
-    config_dir = os.path.dirname(os.path.abspath(__file__))
-    root_dir = os.path.dirname(config_dir)
-    config_path = os.path.join(root_dir, "config.yaml")
+@pytest.fixture
+def temp_config_file(tmp_path):
+    """Fixture to create a temporary config file."""
+    temp_file = tmp_path / "test_config.yaml"
     
-    # Write the mock config to the file
-    with open(config_path, "w") as f:
+    with open(temp_file, "w") as f:
         json.dump(MOCK_CONFIG, f)
-
-def pytest_unconfigure(config):
-    """Clean up the temporary config file after all tests are done."""
-    config_dir = os.path.dirname(os.path.abspath(__file__))
-    root_dir = os.path.dirname(config_dir)
-    config_path = os.path.join(root_dir, "config.yaml")
     
-    # Remove the temporary config file
-    if os.path.exists(config_path):
-        os.remove(config_path)
+    return temp_file
 
-@pytest.fixture(autouse=True)
-def mock_config_globally():
-    """Fixture to provide mock config only when no real config exists."""
-    # Reset the singleton
+@pytest.fixture
+def setup_config_loader(temp_config_file):
+    """Fixture to setup the ConfigLoader singleton with a temporary config file."""
+    # Reset the singleton before the test
     ConfigLoader.reset()
     
-    # Try to load the real config first
-    try:
-        config = ConfigLoader.get_instance().load_config()
-        logger.info("Loaded real config")
-        yield config
-    except FileNotFoundError:
-        # Only use mock config if no real config exists
-        ConfigLoader._config = MOCK_CONFIG.copy()
-        logger.info("Real config not found. Loaded mock config")
-        yield MOCK_CONFIG.copy()
+    # Get the singleton instance
+    config_instance = ConfigLoader.get_instance()
+    # Load the config using the full temporary file path
+    loaded_config = config_instance.load_config(config_path=temp_config_file)
+    logger.info(f"Loaded temporary config from {temp_config_file}")
     
-    # Clean up after the test
+    yield loaded_config # Provide the loaded config to the test
+    
+    # Clean up after the test by resetting the singleton
     ConfigLoader.reset()
+    logger.info("Reset ConfigLoader singleton.")
 
 # Now we can safely import modules that depend on config
 from database.faiss_index import FaissIndex
@@ -96,16 +82,6 @@ hooks, and other test setup that should be available across multiple test files.
 def mock_config():
     """Fixture that provides a mock configuration dictionary for testing."""
     return MOCK_CONFIG.copy()
-
-@pytest.fixture
-def temp_config_file(tmp_path):
-    """Fixture to create a temporary config file."""
-    temp_file = tmp_path / "test_config.yaml"
-    
-    with open(temp_file, "w") as f:
-        json.dump(MOCK_CONFIG, f)
-    
-    return temp_file
 
 @pytest.fixture
 def temp_directory():
@@ -145,12 +121,6 @@ def mock_os_path_exists():
 @pytest.fixture
 def mock_faiss_index(mocker):
     """Fixture to mock FAISS index and avoid file I/O."""
-    # Create a base class to mimic faiss.IndexFlatL2
-    class MockIndexFlatL2:
-        def __init__(self, dim):
-            self.dim = dim
-            self.ntotal = 0
-        
     # Create our mock index class
     class MockIndex(MagicMock):
         def __init__(self, *args, **kwargs):
@@ -162,15 +132,11 @@ def mock_faiss_index(mocker):
     
     # Set up the methods with simple return values
     mock_index.add = MagicMock()
+    # Ensure the returned distances and indices match the expected shape for top_k=3
     mock_index.search = MagicMock(return_value=(np.array([[0.1, 0.2, 0.3]]), np.array([[1, 2, 3]])))
+    mock_index.ntotal = 3 # Ensure ntotal reflects the mocked search results size
     
     # Mock the faiss module and its types
-    mock_flat_l2 = MagicMock(side_effect=MockIndexFlatL2)
-    mocker.patch('faiss.IndexFlatL2', mock_flat_l2)
-    mocker.patch.object(mock_index, '__class__', MockIndexFlatL2)
-    
-    # Mock FAISS index types with the same mock instance
-    mocker.patch("faiss.IndexHNSWFlat", return_value=mock_index)
     mocker.patch("faiss.read_index", return_value=mock_index)
     mocker.patch("faiss.write_index")
     
@@ -283,3 +249,13 @@ def mock_pdf_pipeline_dependencies(mocker, mock_database, mock_faiss):
         'cursor': mock_cursor,
         'faiss': mock_faiss
     }
+
+# Fixture to mock DatabaseManager specifically for Arxiv API tests
+@pytest.fixture
+def mock_db_manager_arxiv():
+    """Fixture to mock DatabaseManager for Arxiv API tests."""
+    with patch('data_pipeline.arxiv_api.DatabaseManager') as mock_db:
+        mock_cursor = MagicMock()
+        mock_db.return_value.__enter__.return_value = mock_cursor
+        mock_db.return_value.__exit__.return_value = None
+        yield mock_cursor # Yield the cursor for tests to use

@@ -7,7 +7,6 @@ import os
 
 from database.faiss_index import FaissIndex
 
-@pytest.mark.usefixtures("mock_config_globally")
 class TestFaissIndex:
     @pytest.fixture
     def temp_index_path(self):
@@ -18,7 +17,7 @@ class TestFaissIndex:
             if os.path.exists(tmp.name):
                 os.remove(tmp.name)
 
-    def test_initialize_index_creates_new_if_not_found(self, mocker, temp_index_path):
+    def test_initialize_index_creates_new_if_not_found(self, mocker, temp_index_path, setup_config_loader):
         """Test index creation when no saved index exists."""
         mocker.patch("faiss.read_index", side_effect=Exception("File not found"))
         
@@ -32,12 +31,12 @@ class TestFaissIndex:
         assert index.index is not None  # Ensures index is initialized
         assert isinstance(index.index, MagicMock)  # Should be a mock object
 
-    def test_initialize_index_loads_existing(self, mock_faiss_index, temp_index_path):
+    def test_initialize_index_loads_existing(self, mock_faiss_index, temp_index_path, setup_config_loader):
         """Test loading an existing FAISS index."""
         index = FaissIndex(index_path=temp_index_path)
         assert index.index == mock_faiss_index
 
-    def test_add_embeddings_correct_shape(self, faiss_index, mock_faiss_index, mocker):
+    def test_add_embeddings_correct_shape(self, faiss_index, mock_faiss_index, mocker, setup_config_loader):
         """Test adding embeddings with correct shape."""
         # Mock the DatabaseManager to prevent actual database operations
         mock_db_context = MagicMock()
@@ -52,7 +51,7 @@ class TestFaissIndex:
         faiss_index.add_embeddings(embeddings, chunk_ids)
         mock_faiss_index.add.assert_called_once()  # Ensure FAISS add() was called
 
-    def test_add_embeddings_dimension_mismatch(self, faiss_index):
+    def test_add_embeddings_dimension_mismatch(self, faiss_index, setup_config_loader):
         """Test adding embeddings with wrong shape raises an error."""
         embeddings = np.random.rand(10, faiss_index.dim - 1).astype(np.float32)
         chunk_ids = list(range(1, 11))  # 10 chunk IDs to match 10 embeddings
@@ -60,7 +59,7 @@ class TestFaissIndex:
         with pytest.raises(AssertionError, match="Embedding dimension mismatch!"):
             faiss_index.add_embeddings(embeddings, chunk_ids)
 
-    def test_add_embeddings_count_mismatch(self, faiss_index):
+    def test_add_embeddings_count_mismatch(self, faiss_index, setup_config_loader):
         """Test adding embeddings with mismatched count of chunk_ids raises an error."""
         embeddings = np.random.rand(10, faiss_index.dim).astype(np.float32)
         chunk_ids = list(range(1, 9))  # Only 8 chunk IDs for 10 embeddings
@@ -68,39 +67,39 @@ class TestFaissIndex:
         with pytest.raises(AssertionError, match="Number of embeddings must match number of chunk IDs"):
             faiss_index.add_embeddings(embeddings, chunk_ids)
 
-    def test_save_index_calls_faiss_write(self, faiss_index, mock_faiss_index):
+    def test_save_index_calls_faiss_write(self, faiss_index, mock_faiss_index, setup_config_loader):
         """Ensure saving index calls faiss.write_index()."""
         faiss_index.save_index()
         faiss.write_index.assert_called_once_with(mock_faiss_index, faiss_index.index_path)
 
-    # def test_search_returns_indices_and_distances(self, faiss_index, mock_faiss_index, mocker):
-    #     """Test search returns expected indices and distances."""
-    #     # Mock the database query results
-    #     mock_db_context = MagicMock()
-    #     mock_cursor = MagicMock()
-    #     mock_cursor.fetchall.return_value = [
-    #         (1, 1), (2, 2), (3, 3)  # (faiss_idx, chunk_id) pairs
-    #     ]
-    #     mock_db_context.__enter__.return_value = mock_cursor
-    #     mocker.patch('database.faiss_index.DatabaseManager', return_value=mock_db_context)
+    def test_search_returns_indices_and_distances(self, faiss_index, mock_faiss_index, mocker):
+        """Test search returns expected indices and distances."""
+        # Mock the database query results
+        mock_db_context = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.fetchall.return_value = [
+            (1, 1), (2, 2), (3, 3)  # (faiss_idx, chunk_id) pairs
+        ]
+        mock_db_context.__enter__.return_value = mock_cursor
+        mocker.patch('database.faiss_index.DatabaseManager', return_value=mock_db_context)
         
-    #     query_embedding = np.random.rand(1, faiss_index.dim).astype(np.float32)
-    #     indices, distances = faiss_index.search(query_embedding)
+        query_embedding = np.random.rand(1, faiss_index.dim).astype(np.float32)
+        indices, distances = faiss_index.search(query_embedding)
         
-    #     assert isinstance(indices, list)  # Now returns a list of chunk_ids
-    #     assert isinstance(distances, np.ndarray)
-    #     assert len(indices) == 3  # Mocked search returns 3 results
-    #     assert distances.shape == (3,)
+        assert isinstance(indices, list)  # Now returns a list of chunk_ids
+        assert isinstance(distances, np.ndarray)
+        assert len(indices) == 3  # Mocked search returns 3 results
+        assert distances.shape == (3,)
 
-    # def test_search_with_dimension_mismatch(self, faiss_index, mock_faiss_index, mocker):
-    #     """Test querying with incorrect embedding shape raises an error."""
-    #     # Create a query embedding with incorrect dimension.
-    #     query_embedding = np.random.rand(1, faiss_index.dim - 1).astype(np.float32)
-    #     with pytest.raises(AssertionError, match="Query embedding dimension mismatch!"):
-    #         faiss_index.search(query_embedding)
+    def test_search_with_dimension_mismatch(self, faiss_index, mock_faiss_index, mocker):
+        """Test querying with incorrect embedding shape raises an error."""
+        # Create a query embedding with incorrect dimension.
+        query_embedding = np.random.rand(1, faiss_index.dim - 1).astype(np.float32)
+        with pytest.raises(AssertionError, match="Query embedding dimension mismatch!"):
+            faiss_index.search(query_embedding)
 
     # Tests for insert_chunks_into_db method
-    def test_insert_chunks_into_db(self, faiss_index, mocker):
+    def test_insert_chunks_into_db(self, faiss_index, mocker, setup_config_loader):
         """Test inserting chunks into database and FAISS index."""
         # Mock the database operations
         mock_db_context = MagicMock()
@@ -157,7 +156,7 @@ class TestFaissIndex:
         # Check chunk IDs
         assert chunk_ids_arg == [42, 42]  # Both chunks get the same ID in our mock
 
-    def test_insert_chunks_into_db_empty_list(self, faiss_index, mocker):
+    def test_insert_chunks_into_db_empty_list(self, faiss_index, mocker, setup_config_loader):
         """Test inserting an empty list of chunks."""
         # Mock the database operations
         mock_db_context = MagicMock()
@@ -187,7 +186,7 @@ class TestFaissIndex:
         # Verify add_embeddings was not called
         faiss_index.add_embeddings.assert_not_called()
 
-    def test_insert_chunks_into_db_embedding_error(self, faiss_index, mocker):
+    def test_insert_chunks_into_db_embedding_error(self, faiss_index, mocker, setup_config_loader):
         """Test handling of errors during embedding generation."""
         # Mock the database operations
         mock_db_context = MagicMock()

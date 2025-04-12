@@ -1,31 +1,24 @@
 import logging
-from pathlib import Path
-from unittest.mock import patch, mock_open, PropertyMock
+from unittest.mock import patch, mock_open
 
-from utils.file_operations import load_config
+from utils.file_operations import load_config, ConfigLoader
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def test_load_config_success(temp_config_file, mock_config):
-    """Test successful loading of a config file"""
-    logger.info("Testing config loading with temporary config file")
-    config_dir = temp_config_file.parent
-    config_filename = temp_config_file.name
-
-    with patch.object(Path, "parent", new_callable=PropertyMock) as mock_parent:
-        mock_parent.return_value = config_dir
-        with patch.object(Path, "parent", new_callable=PropertyMock) as mock_grandparent:
-            mock_grandparent.return_value = config_dir
-            loaded_config = load_config(config_filename)
-            logger.info("Successfully loaded config from temporary file")
-            assert loaded_config == mock_config
+def test_load_config_success(setup_config_loader, mock_config):
+    """Test successful loading of a config file using the loader fixture."""
+    logger.info("Testing config loading via setup_config_loader fixture")
+    loaded_config = setup_config_loader
+    assert loaded_config == mock_config
+    logger.info("Successfully verified config loaded by fixture")
 
 
 def test_load_config_default_filename():
     """Test that the default filename 'config.yaml' is used when not specified"""
     logger.info("Testing config loading with default filename")
+    ConfigLoader.reset()
     try:
         config = load_config()
         logger.info("Successfully loaded real config file")

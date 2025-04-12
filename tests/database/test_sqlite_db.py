@@ -4,12 +4,12 @@ import sqlite3
 
 from database.sqlite_db import DatabaseManager
 
-@pytest.mark.usefixtures("mock_config_globally")
 class TestDatabaseManager:
     
     @pytest.fixture(autouse=True)
-    def setup_db(self):
-        """Setup and cleanup for each test."""
+    def setup_db(self, setup_config_loader):
+        """Setup and cleanup for each test, ensuring config is loaded."""
+        # Config is now loaded by setup_config_loader fixture before this runs
         self.db_path = ":memory:"
         self.db = DatabaseManager(self.db_path)
         yield
