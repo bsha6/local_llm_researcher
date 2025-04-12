@@ -24,6 +24,11 @@ jobs:
       - name: Install Package in Editable Mode
         run: pip install -e .
         
+      - name: Install Ghostscript
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ghostscript
+
       - name: Run Pytest
         shell: bash -l {0}
         run: |
