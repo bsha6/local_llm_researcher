@@ -118,9 +118,7 @@ class TestDatabaseManager:
         mock_cursor.execute.assert_called_once_with(test_query, ())
     
     def test_context_manager(self, mock_sqlite3_connect):
-        """Test the context manager functionality."""
-        mock_cursor = mock_sqlite3_connect['cursor']
-        
+        """Test the context manager functionality."""        
         with DatabaseManager(self.db_path) as cursor:
             cursor.execute("SELECT 1")
             
