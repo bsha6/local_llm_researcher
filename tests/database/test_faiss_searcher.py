@@ -73,8 +73,9 @@ class TestFaissSearcher:
         assert mock_cursor.execute.call_count == len(expected_faiss_indices)
         # Check the first call as an example (assuming fetchone returns the mocked chunks)
         sql_query, params = mock_cursor.execute.call_args_list[0][0]
-        assert sql_query == "SELECT chunk_text FROM paper_chunks WHERE chunk_id = ?"
-        assert params == (10,) # chunk_id corresponding to faiss_idx 10 (from mock_sqlite_connection)
+        assert sql_query == "SELECT chunk_text FROM paper_chunks WHERE faiss_idx=?"
+        # Convert from 0-indexed FAISS indices to 1-indexed SQLite indices
+        assert params == (10+1,) # chunk_id corresponding to faiss_idx 10 (from mock_sqlite_connection)
         
         # Verify the results (using the mocked fetchone results)
         assert len(results) == 3
@@ -91,19 +92,18 @@ class TestFaissSearcher:
         mock_conn, mock_cursor = mock_sqlite_connection
         searcher = FaissSearcher(faiss_index)
         
-        # Call the _fetch_metadata method with some chunk indices
-        # chunk_ids = [1, 2, 3, 4] (assuming these are the IDs corresponding to some search)
-        chunk_ids_to_fetch = [1, 2, 3, 4] 
-        results = searcher._fetch_metadata(chunk_ids_to_fetch)
+        # Call the _fetch_metadata method with some faiss indices
+        faiss_ids_to_fetch = [1, 2, 3, 4] 
+        results = searcher._fetch_metadata(faiss_ids_to_fetch)
         
         # Verify the database was queried correctly
-        assert mock_cursor.execute.call_count == len(chunk_ids_to_fetch)
+        assert mock_cursor.execute.call_count == len(faiss_ids_to_fetch)
         
         # Check the SQL queries
-        for i, chunk_id in enumerate(chunk_ids_to_fetch):
+        for i, faiss_idx in enumerate(faiss_ids_to_fetch):
             args, kwargs = mock_cursor.execute.call_args_list[i]
-            assert args[0] == "SELECT chunk_text FROM paper_chunks WHERE chunk_id = ?"
-            assert args[1] == (chunk_id,)
+            assert args[0] == "SELECT chunk_text FROM paper_chunks WHERE faiss_idx=?"
+            assert args[1] == (faiss_idx+1,) # Convert from 0-indexed FAISS indices to 1-indexed SQLite indices
         
         # Verify the results
         assert len(results) == 3  # Only 3 results because the 4th fetchone returns None
