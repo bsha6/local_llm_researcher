@@ -133,6 +133,7 @@ class TestFaissSearcher:
         mocker.patch.object(
             faiss_index.index,
             'search',
+            # Use correct dtype for indices (int64)
             return_value=(np.array([[]], dtype=np.float32), np.array([[]], dtype=np.int64))
         )
         # -------------------------------------------------------------------
