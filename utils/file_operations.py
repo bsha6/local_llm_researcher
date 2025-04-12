@@ -18,11 +18,11 @@ class ConfigLoader:
         cls._instance = None
         cls._config = None
 
-    def load_config(self, config_filename: str = "config.yaml") -> Dict:
-        """Loads the configuration file from the project's root directory.
+    def load_config(self, config_path: Optional[Path] = None) -> Dict:
+        """Loads the configuration file.
         
         Args:
-            config_filename (str): Name of the config file. Defaults to 'config.yaml'.
+            config_path (Optional[Path]): Path to the config file. If None, defaults to 'config.yaml' in the project's root directory.
         
         Returns:
             dict: Parsed configuration data.
@@ -34,14 +34,15 @@ class ConfigLoader:
         if self._config is not None:
             return self._config
 
-        # Get the absolute path to the project's root directory
-        script_dir = Path(__file__).parent.parent
-        config_path = script_dir / config_filename
+        if config_path is None:
+            script_dir = Path(__file__).parent.parent
+            config_path = script_dir / "config.yaml"
+        else:
+            config_path = Path(config_path)
 
         if not config_path.exists():
             raise FileNotFoundError(f"Config file not found: {config_path}")
 
-        # Load configuration
         with open(config_path, "r") as config_file:
             config = yaml.safe_load(config_file)
             if not config:
@@ -50,7 +51,7 @@ class ConfigLoader:
         self._config = config
         return config
 
-def load_config(config_filename: str = "config.yaml") -> Dict:
+def load_config(config_path: Optional[Path] = None) -> Dict:
     """Helper function to get config using the singleton loader.
     This maintains backwards compatibility with existing code."""
-    return ConfigLoader.get_instance().load_config(config_filename)
+    return ConfigLoader.get_instance().load_config(config_path)
