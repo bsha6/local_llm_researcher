@@ -27,6 +27,9 @@ MOCK_CONFIG = {
         "e5_small": {
             "dimensions": 384,
             "max_tokens": 450
+        },
+        "llm": {
+            "model_name": "gemma3:4b"
         }
     }
 }

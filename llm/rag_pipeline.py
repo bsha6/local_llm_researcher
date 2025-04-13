@@ -25,7 +25,6 @@ class RAGPipeline:
                  faiss_searcher: FaissSearcher = None,
                  embedder: E5Embedder = None,
                  ollama_url: str = "http://localhost:11434",
-                 model_name: str = "llama3.2:3b",
                  num_chunks: int = 3,
                  temperature: float = 0.7):
         """
@@ -34,15 +33,14 @@ class RAGPipeline:
         :param faiss_searcher: Instance of FaissSearcher for retrieval
         :param embedder: Instance of E5Embedder for query embedding
         :param ollama_url: URL for Ollama API
-        :param model_name: Name of the Llama model to use
         :param num_chunks: Number of chunks to retrieve
         :param temperature: Temperature for LLM generation
         """
         self.config = self.get_config()
+        self.model_name = self.config.get('model_name', "deepseek-r1:8b")
         self.faiss_searcher = faiss_searcher or FaissSearcher(FaissIndex())
         self.embedder = embedder or E5Embedder()
         self.ollama_url = ollama_url
-        self.model_name = model_name
         self.num_chunks = num_chunks
         self.temperature = temperature
         
@@ -111,7 +109,7 @@ class RAGPipeline:
 
     def generate_prompt(self, query: str, context_chunks: List[Tuple[str, float]]) -> str:
         """
-        Generate a prompt for Llama using retrieved context.
+        Generate a prompt for LLM using retrieved context.
         
         :param query: User query
         :param context_chunks: List of (chunk_text, relevance_score) tuples
@@ -144,12 +142,12 @@ Please provide a clear and concise answer based on the above research excerpts. 
             logger.error(f"Error in generate_prompt: {str(e)}", exc_info=True)
             return f"Error generating prompt: {str(e)}"
 
-    def query_llama(self, prompt: str) -> str:
+    def query_llm(self, prompt: str) -> str:
         """
-        Query Llama 3.2 through Ollama API.
+        Query LLM through Ollama API.
         
         :param prompt: Formatted prompt
-        :return: Llama's response
+        :return: LLM's response
         """
         try:
             logger.info("Sending request to Ollama API...")
@@ -164,7 +162,7 @@ Please provide a clear and concise answer based on the above research excerpts. 
                 f"{self.ollama_url}/api/generate",
                 json=payload,
                 headers={"Content-Type": "application/json"},
-                timeout=30  # Add timeout
+                timeout=60
             )
             response.raise_for_status()
             
@@ -173,7 +171,7 @@ Please provide a clear and concise answer based on the above research excerpts. 
             return result
             
         except requests.exceptions.RequestException as e:
-            error_msg = f"Error querying Llama: {str(e)}"
+            error_msg = f"Error querying LLM: {str(e)}"
             logger.error(error_msg, exc_info=True)
             return error_msg
 
@@ -196,8 +194,8 @@ Please provide a clear and concise answer based on the above research excerpts. 
             # 2. Generate prompt with context
             prompt = self.generate_prompt(query, relevant_chunks)
             
-            # 3. Get response from Llama
-            answer = self.query_llama(prompt)
+            # 3. Get response from LLM
+            answer = self.query_llm(prompt)
             
             logger.info("Successfully generated answer")
             return answer
