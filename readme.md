@@ -86,21 +86,37 @@ python -m folder.file_name
 
 ### Running Tests
 ```bash
-# TODO: Add test commands
+# Run all tests
+pytest
+
+# Run tests with verbose output
+pytest -v
+
+# Run specific test file
+pytest tests/test_pdf_pipeline.py
+
+# Run specific test function
+pytest tests/test_pdf_pipeline.py::test_function_name
+
+# Run tests matching a specific pattern
+pytest -k "pattern"
+
+# Generate test coverage report
+pytest --cov=.
+
+# Run tests in parallel
+pytest -xvs -n auto
 ```
+
+The project uses fixtures defined in `tests/conftest.py` for mocking dependencies and setting up test environments. Always check this file before creating new test fixtures to avoid duplication.
 
 ### Future Improvements
 - Implement image embedding generation
 - Add batch processing for embeddings
-- Improve DOI extraction from ArXiv
+- Improve DOI extraction from ArXiv (currently null in DB)
+-> find article with doi and ensure it's being extracted properly
 - Add integration tests
 - Set up CI/CD pipeline
 
----
-
-
-### FUTURE IMPROVEMENTS:
--not getting doi from arxiv (null in DB)... look into this
--> find article with doi and ensure it's being extracted properly
 
 
